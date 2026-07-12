@@ -1,5 +1,6 @@
 import { app, Menu, shell, dialog, BrowserWindow, type MenuItemConstructorOptions } from "electron"
 import os from "node:os"
+import path from "node:path"
 
 const isMac = process.platform === "darwin"
 const isDev =
@@ -48,6 +49,8 @@ function reportBug() {
     `- Electron: ${process.versions.electron}`,
     `- Chrome: ${process.versions.chrome}`,
     `- Node: ${process.versions.node}`,
+    "",
+    `> Tip: attach today's log file from ${path.join(app.getPath("userData"), "logs")}`,
   ].join("\n")
 
   const url =
@@ -211,6 +214,10 @@ export function buildAppMenu(mainWindow: BrowserWindow | null) {
       {
         label: "opencode Documentation",
         click: () => shell.openExternal("https://opencode.ai/docs"),
+      },
+      {
+        label: "Open Logs Folder",
+        click: () => shell.openPath(path.join(app.getPath("userData"), "logs")),
       },
       {
         label: "Report a Bug…",

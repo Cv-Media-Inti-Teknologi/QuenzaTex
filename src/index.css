@@ -126,6 +126,8 @@ body {
   font-size: 0.875rem;
   line-height: 1.625;
   word-wrap: break-word;
+  user-select: text;
+  cursor: text;
 }
 
 .chat-bubble-user {

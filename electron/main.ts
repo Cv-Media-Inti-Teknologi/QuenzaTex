@@ -26,7 +26,7 @@ import {
   listSessions,
   type ChatMessageData,
 } from "./services/session"
-import { logger, logFromRenderer } from "./services/logger"
+import { logger, logFromRenderer, initLogging, getLogDir } from "./services/logger"
 import { buildAppMenu } from "./menu"
 
 let mainWindow: BrowserWindow | null = null
@@ -359,13 +359,26 @@ function registerIpcHandlers() {
   })
 }
 
-app.whenReady().then(() => {
-  logger.lifecycle("App starting...")
+// Log uncaught errors so production crashes are traceable in the log files.
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception:", err)
+})
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection:", reason)
+})
 
-  const mode = process.env.QUENZATEX_MODE === "development" || process.env.NODE_ENV === "development"
-    ? "development"
-    : "production"
-  logger.lifecycle(`Mode: ${mode}`)
+app.whenReady().then(() => {
+  const isDev =
+    process.env.QUENZATEX_MODE === "development" || process.env.NODE_ENV === "development"
+
+  // Initialize daily file logging. Always write files in production; in dev we
+  // also write them so behavior can be verified, but console remains primary.
+  const logsDir = path.join(app.getPath("userData"), "logs")
+  initLogging(logsDir, true)
+
+  logger.lifecycle("App starting...")
+  logger.lifecycle(`Mode: ${isDev ? "development" : "production"}`)
+  logger.info(`Logs directory: ${getLogDir()}`)
 
   registerIpcHandlers()
   createWindow()
