@@ -125,9 +125,9 @@ export async function sendOpenCodeMessage(
   try {
     const result = spawnSync(cmd, args, {
       cwd: options?.projectPath || process.cwd(),
+      shell: process.platform === "win32",
       timeout: 120000,
       encoding: "utf-8" as const,
-      maxBuffer: 10 * 1024 * 1024,
     })
 
     const output = result.stdout || ""
