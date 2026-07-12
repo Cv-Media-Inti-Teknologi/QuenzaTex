@@ -1,0 +1,67 @@
+name: Release
+
+# Runs when code lands on production (e.g. a PR is merged into production).
+on:
+  push:
+    branches: [production]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Bump version & tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Increment patch version
+        id: bump
+        run: |
+          NEW_VERSION=$(npm version patch --no-git-tag-version | sed 's/^v//')
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          git add package.json package-lock.json
+          git commit -m "chore(release): v$NEW_VERSION"
+          git tag "v$NEW_VERSION"
+          git push origin HEAD:production
+          git push origin "v$NEW_VERSION"
+
+  release:
+    name: Build & publish - ${{ matrix.os }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build & publish production release
+        run: npm run package
+        env:
+          # electron-builder publishes installers to the GitHub Release for this tag
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

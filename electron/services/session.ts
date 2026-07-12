@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs"
 import path from "node:path"
 import { createHash } from "node:crypto"
 import { logger } from "./logger"
@@ -93,8 +93,7 @@ export function deleteSession(projectPath: string) {
   const filePath = sessionFilePath(projectPath)
   if (existsSync(filePath)) {
     try {
-      const fs = require("node:fs")
-      fs.unlinkSync(filePath)
+      unlinkSync(filePath)
     } catch {}
   }
   const index = readIndex()

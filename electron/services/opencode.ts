@@ -108,7 +108,7 @@ export function isOpenCodeInstalled(): boolean {
   return checkOpencodeInstalled()
 }
 
-function buildPrompt(
+export function buildPrompt(
   message: string,
   options?: {
     projectPath?: string
@@ -152,7 +152,7 @@ function buildPrompt(
   return prompt
 }
 
-function parseCliOutput(output: string, stderr: string): string {
+export function parseCliOutput(output: string, stderr: string): string {
   const stdoutClean = output.replace(/\x1b\[[0-9;]*m/g, "").trim()
   if (!stdoutClean) return "No response from AI."
 

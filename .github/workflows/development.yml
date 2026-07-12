@@ -1,0 +1,63 @@
+name: Development CI
+
+on:
+  push:
+    branches: [development]
+  pull_request:
+    branches: [development]
+
+concurrency:
+  group: dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+          if-no-files-found: ignore
+
+  build-dev:
+    name: Build (dev) - ${{ matrix.os }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Package development build
+        run: npm run package:dev
+        env:
+          # Never publish from development; just build the installers
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload dev installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: quenzatex-dev-${{ matrix.os }}
+          path: |
+            dist-electron-dev/*.exe
+            dist-electron-dev/*.dmg
+            dist-electron-dev/*.AppImage
+            dist-electron-dev/*.deb
+          if-no-files-found: ignore

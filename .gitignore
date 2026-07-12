@@ -1,6 +1,8 @@
 node_modules/
 out/
 dist-electron/
+dist-electron-dev/
+coverage/
 .DS_Store
 *.log
 .env
