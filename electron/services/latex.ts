@@ -1,7 +1,6 @@
 import { execSync, spawn } from "child_process"
 import path from "path"
 import fs from "fs"
-import { app } from "electron"
 import { logger } from "./logger"
 
 function getLatexmkPath(): string | null {
@@ -145,7 +144,7 @@ export function startLatexWatch(
   }
 }
 
-function parseLatexErrors(output: string): { line: number; message: string }[] {
+export function parseLatexErrors(output: string): { line: number; message: string }[] {
   const errors: { line: number; message: string }[] = []
   const regex = /^l\.(\d+)\s+(.+)$/gm
   let match
