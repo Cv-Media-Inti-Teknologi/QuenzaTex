@@ -2,14 +2,20 @@
   "name": "quenzatex",
   "version": "0.1.0",
   "description": "AI-Powered LaTeX Editor",
+  "author": {
+    "name": "CV Media Inti Teknologi",
+    "email": "admin@gomit.id"
+  },
+  "homepage": "https://github.com/Cv-Media-Inti-Teknologi/QuenzaTex",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "cross-env QUENZATEX_MODE=development electron-vite dev",
     "build": "cross-env QUENZATEX_MODE=production electron-vite build",
     "build:dev": "cross-env QUENZATEX_MODE=development electron-vite build",
     "preview": "cross-env QUENZATEX_MODE=production electron-vite preview",
-    "package": "npm run build && electron-builder --config electron-builder.yml",
-    "package:dev": "npm run build:dev && electron-builder --config electron-builder.dev.yml",
+    "package": "npm run build && electron-builder --config electron-builder.yml --publish never",
+    "release": "npm run build && electron-builder --config electron-builder.yml --publish always",
+    "package:dev": "npm run build:dev && electron-builder --config electron-builder.dev.yml --publish never",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

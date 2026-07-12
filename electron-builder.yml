@@ -18,6 +18,7 @@ linux:
     - AppImage
     - deb
   icon: resources/icon.png
+  maintainer: CV Media Inti Teknologi <admin@gomit.id>
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

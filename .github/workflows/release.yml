@@ -61,7 +61,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build & publish production release
-        run: npm run package
+        run: npm run release
         env:
           # electron-builder publishes installers to the GitHub Release for this tag
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
