@@ -17,12 +17,26 @@ import { useSession } from "../../hooks/useSession"
 import { useSettings } from "../../store/SettingsContext"
 import type { ChatMessage } from "../../hooks/useOpencode"
 
+const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"]
+const TEXT_EXTS = [
+  ".tex", ".bib", ".cls", ".sty", ".log", ".aux", ".txt", ".md",
+  ".bbl", ".toc", ".lof", ".lot", ".fls", ".json", ".yml", ".yaml",
+]
+
+function extOf(p: string): string {
+  const i = p.lastIndexOf(".")
+  return i === -1 ? "" : p.slice(i).toLowerCase()
+}
+
 export function AppLayout() {
   const [explorerHidden, setExplorerHidden] = useState(false)
   const [aiHidden, setAiHidden] = useState(false)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [pdfPath, setPdfPath] = useState<string | null>(null)
   const [pdfVersion, setPdfVersion] = useState(0)
+  const [imagePath, setImagePath] = useState<string | null>(null)
+  const [imageVersion, setImageVersion] = useState(0)
+  const [previewKind, setPreviewKind] = useState<"pdf" | "image" | null>(null)
   const [compiling, setCompiling] = useState(false)
   const [showSetup, setShowSetup] = useState(() => !localStorage.getItem("quenzatex-setup-done"))
   const [showSettings, setShowSettings] = useState(false)
@@ -104,11 +118,35 @@ export function AppLayout() {
 
   const handleSelectFile = useCallback(async (path: string) => {
     selectFile(path)
-    const content = await window.electronAPI.readFile(path)
-    setFileContent(content)
-    if (path.endsWith(".tex")) {
-      setPdfPath(null)
+    const ext = extOf(path)
+
+    if (ext === ".pdf") {
+      // Show PDF in the preview panel; do not load it as text.
+      setPdfPath(path)
+      setPdfVersion(Date.now())
+      setPreviewKind("pdf")
+      return
     }
+
+    if (IMAGE_EXTS.includes(ext)) {
+      // Show image in the preview panel.
+      setImagePath(path)
+      setImageVersion(Date.now())
+      setPreviewKind("image")
+      return
+    }
+
+    if (ext === "" || TEXT_EXTS.includes(ext)) {
+      // Text file → editor
+      const content = await window.electronAPI.readFile(path)
+      setFileContent(content)
+      return
+    }
+
+    // Unknown/binary file → don't dump raw bytes into the editor
+    setFileContent(
+      `⚠️ Preview not available for "${path.split(/[/\\]/).pop()}".\n\nThis file type can't be shown as text.`
+    )
   }, [selectFile])
 
   const handleSave = useCallback(async (content: string) => {
@@ -127,6 +165,7 @@ export function AppLayout() {
       if (result.pdfPath) {
         setPdfPath(result.pdfPath)
         setPdfVersion(Date.now())
+        setPreviewKind("pdf")
       }
     } finally {
       setCompiling(false)
@@ -216,8 +255,11 @@ export function AppLayout() {
             <ResizableHandle />
             <ResizablePanel defaultSize={50} minSize={20} className="min-w-0">
               <PreviewPanel
+                previewKind={previewKind}
                 pdfPath={pdfPath}
                 pdfVersion={pdfVersion}
+                imagePath={imagePath}
+                imageVersion={imageVersion}
                 onCompile={handleCompile}
                 compiling={compiling}
               />
