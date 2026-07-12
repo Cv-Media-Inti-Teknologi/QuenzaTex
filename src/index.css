@@ -79,12 +79,6 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 html,
 body,
 #root {
