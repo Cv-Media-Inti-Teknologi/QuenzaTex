@@ -212,10 +212,6 @@ export function buildAppMenu(mainWindow: BrowserWindow | null) {
       },
       { type: "separator" },
       {
-        label: "opencode Documentation",
-        click: () => shell.openExternal("https://opencode.ai/docs"),
-      },
-      {
         label: "Open Logs Folder",
         click: () => shell.openPath(path.join(app.getPath("userData"), "logs")),
       },
