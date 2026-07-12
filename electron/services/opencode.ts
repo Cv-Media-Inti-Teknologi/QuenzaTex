@@ -2,6 +2,8 @@ import { spawn, execSync } from "child_process"
 import { createServer } from "net"
 import http from "http"
 import path from "path"
+import fs from "fs"
+import os from "os"
 
 interface OpenCodeStatus {
   running: boolean
@@ -13,7 +15,6 @@ let serverProcess: ReturnType<typeof spawn> | null = null
 let currentStatus: OpenCodeStatus = { running: false, mode: "off", port: 0 }
 let activeSessionId: string | null = null
 let currentProjectPath: string | null = null
-let serverStarting: Promise<boolean> | null = null
 
 function checkOpencodeInstalled(): boolean {
   try {
@@ -22,6 +23,10 @@ function checkOpencodeInstalled(): boolean {
   } catch {
     return false
   }
+}
+
+function getOpenCodeCmd(): string {
+  return process.platform === "win32" ? "opencode.cmd" : "opencode"
 }
 
 async function findFreePort(): Promise<number> {
@@ -34,44 +39,58 @@ async function findFreePort(): Promise<number> {
   })
 }
 
+function writeTempConfig(): string | null {
+  const config = {
+    permissions: {
+      read: "allow",
+      write: "allow",
+      edit: "allow",
+      apply_patch: "allow",
+      bash: "allow",
+      grep: "allow",
+      glob: "allow",
+    },
+  }
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "quenzatex-"))
+  const configPath = path.join(tmpDir, "opencode.json")
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf8")
+    return configPath
+  } catch {
+    return null
+  }
+}
+
 async function startHttpServer(projectDir?: string): Promise<boolean> {
   if (!checkOpencodeInstalled()) return false
 
   const port = await findFreePort()
+  const configPath = writeTempConfig()
+  if (!configPath) return false
 
   return new Promise((resolve) => {
     const cwd = projectDir || process.cwd()
+    const cmd = getOpenCodeCmd()
 
-    const proc = spawn(
-      "opencode",
-      [
-        "serve",
-        "--port", String(port),
-        "--hostname", "127.0.0.1",
-        "--config", JSON.stringify({
-          permissions: {
-            read: "allow",
-            write: "allow",
-            edit: "allow",
-            apply_patch: "allow",
-            bash: "allow",
-            grep: "allow",
-            glob: "allow",
-          },
-        }),
-      ],
-      {
-        cwd,
-        stdio: ["ignore", "pipe", "pipe"],
-        shell: true,
-      }
-    )
+    const args = [
+      "serve",
+      "--port", String(port),
+      "--hostname", "127.0.0.1",
+      "--config", configPath,
+    ]
+
+    const proc = spawn(cmd, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
 
     let started = false
+    let errorData = ""
 
     const checkStarted = (data: Buffer) => {
       const text = data.toString()
-      if (!started && (text.includes("listening") || text.includes("Server"))) {
+      errorData += text
+      if (!started && (text.includes("listening") || text.includes("Server") || text.includes("started"))) {
         started = true
         serverProcess = proc
         currentStatus = { running: true, mode: "http", port }
@@ -82,22 +101,27 @@ async function startHttpServer(projectDir?: string): Promise<boolean> {
     proc.stdout?.on("data", checkStarted)
     proc.stderr?.on("data", checkStarted)
 
-    proc.on("error", () => {
+    proc.on("error", (err) => {
+      console.error("opencode serve error:", err.message)
       if (!started) resolve(false)
     })
 
-    proc.on("exit", () => {
-      if (!started) resolve(false)
+    proc.on("exit", (code) => {
+      if (!started) {
+        console.error("opencode serve exited with code", code, "stderr:", errorData)
+        resolve(false)
+      }
       serverProcess = null
       currentStatus = { running: false, mode: "off", port: 0 }
     })
 
     setTimeout(() => {
       if (!started) {
+        console.error("opencode serve timeout. stderr:", errorData)
         proc.kill()
         resolve(false)
       }
-    }, 10000)
+    }, 15000)
   })
 }
 
@@ -226,11 +250,9 @@ async function sendViaCli(
   }
   prompt += message
 
-  const escaped = prompt.replace(/"/g, '\\"')
-
   try {
     const output = execSync(
-      `opencode run "${escaped}"`,
+      `opencode run "${prompt.replace(/"/g, '\\"')}"`,
       { cwd: projectContext?.projectPath || process.cwd(), timeout: 120000, encoding: "utf-8" }
     )
     return output.trim()
@@ -244,11 +266,16 @@ export async function setProjectPath(projectPath: string | null) {
   currentProjectPath = projectPath
   activeSessionId = null
 
-  if (changed && projectPath && currentStatus.mode === "http") {
-    console.log(`Project changed to ${projectPath}, restarting opencode server...`)
-    stopOpenCode()
-    await startHttpServer(projectPath)
-    console.log(`Opencode server restarted with project: ${projectPath}`)
+  if (changed && projectPath) {
+    if (currentStatus.mode === "http") {
+      console.log(`Project changed to ${projectPath}, restarting opencode server...`)
+      stopOpenCode()
+      const ok = await startHttpServer(projectPath)
+      console.log(`Opencode server restart: ${ok ? "OK" : "FAILED"}, mode: ${currentStatus.mode}`)
+    } else {
+      // In CLI mode, just update the path — CLI picks up cwd on each call
+      console.log(`Project changed to ${projectPath} (CLI mode)`)
+    }
   }
 }
 
@@ -258,8 +285,12 @@ export async function startOpenCode(projectDir?: string): Promise<OpenCodeStatus
   }
 
   const httpOk = await startHttpServer(currentProjectPath || undefined)
-  if (httpOk) return currentStatus
+  if (httpOk) {
+    console.log(`Opencode HTTP server started on port ${currentStatus.port}`)
+    return currentStatus
+  }
 
+  console.log("Opencode HTTP server failed, falling back to CLI mode")
   if (checkOpencodeInstalled()) {
     currentStatus = { running: true, mode: "cli", port: 0 }
   } else {

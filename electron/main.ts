@@ -82,6 +82,8 @@ function registerIpcHandlers() {
     if (result.canceled || result.filePaths.length === 0) return null
     currentProjectDir = result.filePaths[0]
     await setProjectPath(currentProjectDir)
+    const newStatus = getOpenCodeStatus()
+    mainWindow?.webContents.send("opencode:status-changed", newStatus)
     return { path: currentProjectDir, files: getAllFiles(currentProjectDir) }
   })
 

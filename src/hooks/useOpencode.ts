@@ -45,6 +45,15 @@ export function useOpencode() {
     init()
   }, [])
 
+  // Listen for server restart/status changes
+  useEffect(() => {
+    if (typeof window.electronAPI.onOpencodeStatusChanged !== "function") return
+    const unsub = window.electronAPI.onOpencodeStatusChanged((status) => {
+      setState((s) => ({ ...s, status }))
+    })
+    return () => { if (typeof unsub === "function") unsub() }
+  }, [])
+
   const setProjectContext = useCallback((ctx: { projectPath: string; fileList?: string } | null) => {
     projectContextRef.current = ctx
   }, [])
