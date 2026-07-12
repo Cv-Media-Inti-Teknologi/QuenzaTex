@@ -1,4 +1,5 @@
 import { app, Menu, shell, dialog, BrowserWindow, type MenuItemConstructorOptions } from "electron"
+import os from "node:os"
 
 const isMac = process.platform === "darwin"
 const isDev =
@@ -22,6 +23,39 @@ function showAbout(win: BrowserWindow | null) {
     buttons: ["OK"],
     noLink: true,
   })
+}
+
+function reportBug() {
+  const repo = "https://github.com/Cv-Media-Inti-Teknologi/QuenzaTex"
+  const title = "[Bug] "
+  const body = [
+    "## Describe the bug",
+    "A clear and concise description of what the bug is.",
+    "",
+    "## Steps to reproduce",
+    "1. ",
+    "2. ",
+    "3. ",
+    "",
+    "## Expected behavior",
+    "",
+    "## Screenshots / logs",
+    "",
+    "---",
+    "### Environment",
+    `- Quenzatex: v${app.getVersion()}`,
+    `- OS: ${process.platform} ${process.arch} (${os.release()})`,
+    `- Electron: ${process.versions.electron}`,
+    `- Chrome: ${process.versions.chrome}`,
+    `- Node: ${process.versions.node}`,
+  ].join("\n")
+
+  const url =
+    `${repo}/issues/new?` +
+    `title=${encodeURIComponent(title)}` +
+    `&body=${encodeURIComponent(body)}` +
+    `&labels=${encodeURIComponent("bug")}`
+  shell.openExternal(url)
 }
 
 export function buildAppMenu(mainWindow: BrowserWindow | null) {
@@ -177,6 +211,10 @@ export function buildAppMenu(mainWindow: BrowserWindow | null) {
       {
         label: "opencode Documentation",
         click: () => shell.openExternal("https://opencode.ai/docs"),
+      },
+      {
+        label: "Report a Bug…",
+        click: () => reportBug(),
       },
       ...(!isMac
         ? ([
