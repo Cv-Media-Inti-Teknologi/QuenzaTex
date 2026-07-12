@@ -1,0 +1,96 @@
+name: Development CI
+
+on:
+  push:
+    branches: [development]
+  pull_request:
+    branches: [development]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+          if-no-files-found: ignore
+
+  build-dev:
+    name: Build (dev) - ${{ matrix.os }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Package development build
+        run: npm run package:dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload dev installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: quenzatex-dev-${{ matrix.os }}
+          path: |
+            dist-electron-dev/*.exe
+            dist-electron-dev/*.dmg
+            dist-electron-dev/*.AppImage
+            dist-electron-dev/*.deb
+          if-no-files-found: ignore
+
+  # After all 3 dev builds succeed on a push to development, publish a rolling
+  # development pre-release ("dev-latest") that always holds the newest installers.
+  dev-release:
+    name: Publish development pre-release
+    needs: build-dev
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all dev installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: quenzatex-dev-*
+          path: installers
+          merge-multiple: true
+      - name: List downloaded files
+        run: ls -R installers
+      - name: Publish rolling development pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-latest
+          name: Development Build (latest)
+          prerelease: true
+          body: |
+            ⚠️ **Development build** — automatically generated from the latest
+            commit on the `development` branch. This is a pre-release for testing
+            and may be unstable.
+
+            Commit: ${{ github.sha }}
+          files: installers/**/*
+          fail_on_unmatched_files: false

@@ -1,8 +1,36 @@
-import { app, BrowserWindow, ipcMain } from "electron"
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron"
 import path from "path"
 import fs from "fs"
+import { compileLatex, checkLatexInstallation, startLatexWatch } from "./services/latex"
+import {
+  getOpenCodeStatus,
+  sendOpenCodeMessage,
+  isOpenCodeInstalled,
+  startOpenCode,
+} from "./services/opencode"
+import { checkEnvironment, installOpencode } from "./services/env-setup"
+import {
+  getCuratedProviders,
+  getProviderStatus,
+  saveApiKey,
+  removeApiKey,
+  listModels,
+  listModelsForProvider,
+  saveCustomProvider,
+  checkConnection,
+} from "./services/ai-config"
+import {
+  loadSession,
+  saveSession,
+  deleteSession,
+  listSessions,
+  type ChatMessageData,
+} from "./services/session"
+import { logger, logFromRenderer, initLogging, getLogDir } from "./services/logger"
+import { buildAppMenu } from "./menu"
 
 let mainWindow: BrowserWindow | null = null
+let currentProjectDir: string | null = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -16,11 +44,18 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+    icon: path.join(__dirname, "../../resources/icon.png"),
   })
 
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show()
   })
+
+  if (process.env.QUENZATEX_MODE === "development" || process.env.NODE_ENV === "development") {
+    mainWindow.webContents.openDevTools()
+    mainWindow.maximize()
+    mainWindow.setTitle("QuenzaTex [DEV]")
+  }
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -29,14 +64,346 @@ function createWindow() {
   }
 }
 
+function getAllFiles(dir: string): { name: string; isDirectory: boolean; path: string }[] {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    return entries
+      .filter((e) => !e.name.startsWith("."))
+      .map((e) => ({
+        name: e.name,
+        isDirectory: e.isDirectory(),
+        path: path.join(dir, e.name),
+      }))
+      .sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1
+        if (!a.isDirectory && b.isDirectory) return 1
+        return a.name.localeCompare(b.name)
+      })
+  } catch {
+    return []
+  }
+}
+
+function registerIpcHandlers() {
+  ipcMain.handle("project:open", async () => {
+    logger.file("Open project dialog...")
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory"],
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      logger.file("Project open canceled")
+      return null
+    }
+    currentProjectDir = result.filePaths[0]
+    const files = getAllFiles(currentProjectDir)
+    logger.file(`Opened project: ${currentProjectDir} (${files.length} items)`)
+    return { path: currentProjectDir, files }
+  })
+
+  ipcMain.handle("file:read", async (_, filePath: string) => {
+    try {
+      const content = fs.readFileSync(filePath, "utf-8")
+      logger.file(`Read: ${path.basename(filePath)} (${content.length}B)`)
+      return content
+    } catch (err) {
+      logger.warn(`Read failed: ${filePath}`, err)
+      return null
+    }
+  })
+
+  ipcMain.handle("file:write", async (_, filePath: string, content: string) => {
+    try {
+      fs.writeFileSync(filePath, content, "utf-8")
+      logger.save(`Saved: ${path.basename(filePath)} (${content.length}B)`)
+      return true
+    } catch (err) {
+      logger.error(`Save failed: ${filePath}`, err)
+      return false
+    }
+  })
+
+  ipcMain.handle("file:listDir", async (_, dirPath: string) => {
+    const entries = getAllFiles(dirPath)
+    logger.dir(`List dir: ${path.basename(dirPath)} (${entries.length} items)`)
+    return entries
+  })
+
+  ipcMain.handle("file:show-in-folder", async (_, filePath: string) => {
+    try {
+      shell.showItemInFolder(filePath)
+      logger.file(`Revealed in Explorer: ${path.basename(filePath)}`)
+      return true
+    } catch (err) {
+      logger.error(`Failed to reveal in Explorer: ${filePath}`, err)
+      return false
+    }
+  })
+
+  let latexWatcher: { stop: () => void } | null = null
+
+  ipcMain.handle("latex:compile", async (_, filePath: string) => {
+    const start = Date.now()
+    logger.latex(`Compile: ${path.basename(filePath)}...`)
+    const result = compileLatex(filePath)
+    const duration = Date.now() - start
+    if (result.success) {
+      logger.latex(`Compile OK (${duration}ms): ${path.basename(filePath)} → PDF ready`)
+    } else {
+      logger.latex(`Compile FAILED (${duration}ms): ${result.errors.length} errors`)
+    }
+    return result
+  })
+
+  ipcMain.handle("pdf:read", async (_, pdfPath: string) => {
+    try {
+      if (!pdfPath || !pdfPath.toLowerCase().endsWith(".pdf") || !fs.existsSync(pdfPath)) {
+        logger.warn(`pdf:read invalid path: ${pdfPath}`)
+        return null
+      }
+      const buf = fs.readFileSync(pdfPath)
+      logger.latex(`Read PDF: ${path.basename(pdfPath)} (${buf.length}B)`)
+      // Return a plain ArrayBuffer slice so it survives IPC structured clone
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+    } catch (err: any) {
+      logger.error(`pdf:read failed: ${err?.message}`)
+      return null
+    }
+  })
+
+  ipcMain.handle("image:read", async (_, imagePath: string) => {
+    try {
+      const ext = path.extname(imagePath || "").toLowerCase()
+      const mimeMap: Record<string, string> = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+      }
+      const mime = mimeMap[ext]
+      if (!mime || !fs.existsSync(imagePath)) {
+        logger.warn(`image:read invalid path: ${imagePath}`)
+        return null
+      }
+      const buf = fs.readFileSync(imagePath)
+      logger.file(`Read image: ${path.basename(imagePath)} (${buf.length}B)`)
+      return {
+        bytes: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+        mime,
+      }
+    } catch (err: any) {
+      logger.error(`image:read failed: ${err?.message}`)
+      return null
+    }
+  })
+
+  ipcMain.handle("latex:check", async () => {
+    logger.latex("Checking LaTeX installation...")
+    const result = checkLatexInstallation()
+    logger.latex(`LaTeX check: ${result ? "found" : "not found"}`)
+    return result
+  })
+
+  ipcMain.handle("latex:watch", async (_, filePath: string) => {
+    if (latexWatcher) {
+      latexWatcher.stop()
+      logger.info("Stopped previous LaTeX watcher")
+    }
+
+    latexWatcher = startLatexWatch(filePath, (result) => {
+      if (result.success) {
+        logger.latex(`Watch auto-compile OK: ${result.pdfPath}`)
+      } else {
+        logger.latex(`Watch auto-compile FAILED: ${result.errors.length} errors`)
+      }
+      mainWindow?.webContents.send("latex:compile-result", result)
+    })
+
+    logger.latex(`Started watch: ${path.basename(filePath)}`)
+    return true
+  })
+
+  ipcMain.handle("latex:stop-watch", async () => {
+    if (latexWatcher) {
+      latexWatcher.stop()
+      latexWatcher = null
+      logger.latex("Stopped LaTeX watcher")
+    }
+    return true
+  })
+
+  ipcMain.handle("opencode:status", async () => {
+    const status = getOpenCodeStatus()
+    logger.ai(`Status check: ${status.mode}`)
+    return status
+  })
+
+  ipcMain.handle("opencode:check-installed", async () => {
+    const installed = isOpenCodeInstalled()
+    logger.ai(`Installed check: ${installed}`)
+    return installed
+  })
+
+  ipcMain.handle(
+    "opencode:send-with-context",
+    async (
+      _,
+      message: string,
+      projectPath: string,
+      fileList?: string,
+      conversationHistory?: { role: string; content: string }[],
+      model?: string
+    ) => {
+      const msgPreview = message.length > 60 ? message.slice(0, 60) + "..." : message
+      const historyCount = conversationHistory?.length || 0
+      const promptSize = message.length + (fileList?.length || 0)
+      logger.ai(`Send: "${msgPreview}" (history: ${historyCount}, prompt: ~${promptSize}B, model: ${model || "default"})`)
+
+      const start = Date.now()
+      const result = await sendOpenCodeMessage(message, {
+        projectPath,
+        fileList,
+        conversationHistory,
+        model,
+      })
+      const duration = Date.now() - start
+
+      const respPreview = result.response.length > 80 ? result.response.slice(0, 80) + "..." : result.response
+      logger.ai(`Response (${duration}ms): "${respPreview}"`)
+
+      // Tell the renderer which files changed so it can refresh the tree and
+      // auto-open the newest one in the editor.
+      mainWindow?.webContents.send("project:files-changed", result.changedFiles)
+      logger.file(`File tree refresh triggered (${result.changedFiles.length} changed)`)
+      return { response: result.response, changedFiles: result.changedFiles }
+    }
+  )
+
+  ipcMain.handle("env:check", async () => {
+    logger.lifecycle("Checking environment...")
+    const result = await checkEnvironment()
+    logger.ready(`Node: ${result.node.version}, opencode: ${result.opencode.version}, TeX: ${result.texlive.found ? result.texlive.version : "not found"}`)
+    return result
+  })
+
+  ipcMain.handle("env:install-opencode", async () => {
+    logger.lifecycle("Installing opencode...")
+    const ok = await installOpencode()
+    logger.lifecycle(`Install opencode: ${ok ? "OK" : "FAILED"}`)
+    return ok
+  })
+
+  // --- AI provider / model configuration ---
+  ipcMain.handle("ai:list-providers", async () => {
+    const curated = getCuratedProviders()
+    const status = getProviderStatus()
+    return { curated, status }
+  })
+
+  ipcMain.handle("ai:list-models", async (_, providerId?: string) => {
+    const models = providerId ? listModelsForProvider(providerId) : listModels()
+    logger.ai(`List models${providerId ? ` for ${providerId}` : ""}: ${models.length}`)
+    return models
+  })
+
+  ipcMain.handle("ai:save-key", async (_, providerId: string, key: string) => {
+    return saveApiKey(providerId, key)
+  })
+
+  ipcMain.handle("ai:remove-key", async (_, providerId: string) => {
+    return removeApiKey(providerId)
+  })
+
+  ipcMain.handle("ai:get-status", async () => {
+    return getProviderStatus()
+  })
+
+  ipcMain.handle("ai:save-custom-provider", async (_, cfg: {
+    id: string
+    name: string
+    baseURL: string
+    apiKey: string
+    modelId: string
+  }) => {
+    return saveCustomProvider(cfg)
+  })
+
+  ipcMain.handle("ai:check-connection", async (_, modelFull: string) => {
+    logger.ai(`Check connection: ${modelFull}`)
+    return checkConnection(modelFull)
+  })
+
+  ipcMain.handle("session:load", async (_, projectPath: string) => {
+    const messages = loadSession(projectPath)
+    logger.session(`Loaded: ${path.basename(projectPath)} (${messages.length} messages)`)
+    return messages
+  })
+
+  ipcMain.handle("session:save", async (_, projectPath: string, messages: ChatMessageData[]) => {
+    saveSession(projectPath, messages)
+    logger.session(`Saved: ${path.basename(projectPath)} (${messages.length} messages)`)
+    return true
+  })
+
+  ipcMain.handle("session:delete", async (_, projectPath: string) => {
+    deleteSession(projectPath)
+    logger.clear(`Session deleted: ${path.basename(projectPath)}`)
+    return true
+  })
+
+  ipcMain.handle("session:list", async () => {
+    const sessions = listSessions()
+    logger.session(`List sessions: ${sessions.length} found`)
+    return sessions
+  })
+}
+
+// Log uncaught errors so production crashes are traceable in the log files.
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception:", err)
+})
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection:", reason)
+})
+
 app.whenReady().then(() => {
+  const isDev =
+    process.env.QUENZATEX_MODE === "development" || process.env.NODE_ENV === "development"
+
+  // Initialize daily file logging. Always write files in production; in dev we
+  // also write them so behavior can be verified, but console remains primary.
+  const logsDir = path.join(app.getPath("userData"), "logs")
+  initLogging(logsDir, true)
+
+  logger.lifecycle("App starting...")
+  logger.lifecycle(`Mode: ${isDev ? "development" : "production"}`)
+  logger.info(`Logs directory: ${getLogDir()}`)
+
+  registerIpcHandlers()
   createWindow()
+  buildAppMenu(mainWindow)
+  logger.ready("Window created")
+
+  startOpenCode()
+  logger.ready("opencode initialized")
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      logger.lifecycle("Reactivated (macOS)")
+      createWindow()
+      buildAppMenu(mainWindow)
+    }
   })
 })
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit()
+  if (process.platform !== "darwin") {
+    logger.lifecycle("All windows closed, quitting")
+    app.quit()
+  }
 })
+
+ipcMain.on("log:from-renderer", logFromRenderer)

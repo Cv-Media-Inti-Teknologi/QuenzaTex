@@ -172,9 +172,20 @@ npm run package     # Build + package with electron-builder
 
 ## Branch Strategy
 
-- `main` — stable, release-ready
-- `feat/*` — fitur baru (merge via PR ke main)
-- Setiap fase development punya branch sendiri
+- `production` — stable, release-ready untuk end-user
+- `development` — integration branch, semua feat/* di-merge ke sini dulu
+- `feat/*` — fitur baru, merge ke development via PR
+- Alur: `feat/*` → `development` → `production`
+
+## Dual Build Mode
+
+| Mode | Command | DevTools | Source Maps | Output Name |
+|------|---------|----------|-------------|-------------|
+| Development | `npm run dev` | ✅ auto-open | ✅ HMR | N/A (dev server) |
+| Development | `npm run package:dev` | ✅ auto-open | ✅ full | `Quenzatex Dev-Setup-0.1.0-dev.exe` |
+| Production | `npm run package` | ❌ | ❌ | `Quenzatex-Setup-0.1.0.exe` |
+
+Environment variable `QUENZATEX_MODE=development` atau `NODE_ENV=development` akan trigger DevTools + source maps + window title "[DEV]".
 
 ---
 

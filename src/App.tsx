@@ -1,11 +1,16 @@
+import { SettingsProvider } from "./store/SettingsContext"
+import { AppLayout } from "./components/layout/AppLayout"
+import { TooltipProvider } from "./components/ui/tooltip"
+import { Toaster } from "./components/ui/sonner"
+
 function App() {
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-[#f8f9fa]">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold text-gray-800">Quenzatex</h1>
-        <p className="text-gray-500 mt-2">AI-Powered LaTeX Editor</p>
-      </div>
-    </div>
+    <SettingsProvider>
+      <TooltipProvider delayDuration={300}>
+        <AppLayout />
+        <Toaster position="bottom-right" richColors closeButton />
+      </TooltipProvider>
+    </SettingsProvider>
   )
 }
 

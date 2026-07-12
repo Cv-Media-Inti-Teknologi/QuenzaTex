@@ -1,0 +1,25 @@
+appId: com.quenzatex.app.dev
+productName: QuenzaTex Dev
+directories:
+  buildResources: resources
+  output: dist-electron-dev
+files:
+  - out/**/*
+win:
+  target:
+    - nsis
+  icon: resources/icon.ico
+mac:
+  target:
+    - dmg
+  icon: resources/icon.icns
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: resources/icon.png
+  maintainer: CV Media Inti Teknologi <admin@gomit.id>
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+artifactName: ${productName}-Setup-${version}-dev.${ext}
