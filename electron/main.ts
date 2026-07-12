@@ -32,6 +32,12 @@ function createWindow() {
     mainWindow?.show()
   })
 
+  if (process.env.QUENZATEX_MODE === "development" || process.env.NODE_ENV === "development") {
+    mainWindow.webContents.openDevTools()
+    mainWindow.maximize()
+    mainWindow.setTitle("Quenzatex [DEV]")
+  }
+
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {

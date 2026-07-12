@@ -4,10 +4,12 @@
   "description": "AI-Powered LaTeX Editor",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "package": "electron-vite build && electron-builder --config electron-builder.yml"
+    "dev": "cross-env QUENZATEX_MODE=development electron-vite dev",
+    "build": "cross-env QUENZATEX_MODE=production electron-vite build",
+    "build:dev": "cross-env QUENZATEX_MODE=development electron-vite build",
+    "preview": "cross-env QUENZATEX_MODE=production electron-vite preview",
+    "package": "npm run build && electron-builder --config electron-builder.yml",
+    "package:dev": "npm run build:dev && electron-builder --config electron-builder.dev.yml"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -25,6 +27,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "cross-env": "^10.1.0",
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
