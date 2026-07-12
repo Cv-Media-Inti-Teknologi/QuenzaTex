@@ -9,6 +9,7 @@ import { WelcomeOnboarding } from "../onboarding/WelcomeOnboarding"
 import { SetupWizard } from "../onboarding/SetupWizard"
 import { TipOfTheDay } from "../tips/TipOfTheDay"
 import { SettingsDialog } from "../settings/SettingsDialog"
+import { ShortcutsDialog } from "../settings/ShortcutsDialog"
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -44,8 +45,10 @@ export function AppLayout() {
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem("quenzatex-welcome-done"))
   const [showSetup, setShowSetup] = useState(() => !localStorage.getItem("quenzatex-setup-done"))
   const [showSettings, setShowSettings] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const prevProjectPathRef = useRef<string | null>(null)
+  const editorContentRef = useRef<string>("")
 
   const {
     project,
@@ -164,6 +167,7 @@ export function AppLayout() {
       // Text file → editor
       const content = await window.electronAPI.readFile(path)
       setFileContent(content)
+      editorContentRef.current = content ?? ""
       return
     }
 
@@ -237,6 +241,44 @@ export function AppLayout() {
     return () => { if (typeof unsub === "function") unsub() }
   }, [refreshFiles])
 
+  // Handle native menu actions (File/Edit/View/Help)
+  useEffect(() => {
+    if (typeof window.electronAPI.onMenuAction !== "function") return
+    const unsub = window.electronAPI.onMenuAction((action) => {
+      logger.key(`Menu → ${action}`)
+      switch (action) {
+        case "open-project":
+          openProject()
+          break
+        case "save": {
+          const path = getSelectedPath()
+          if (path) window.electronAPI.writeFile(path, editorContentRef.current)
+          break
+        }
+        case "compile":
+          handleCompile()
+          break
+        case "toggle-explorer":
+          setExplorerHidden((v) => !v)
+          break
+        case "toggle-ai":
+          setAiHidden((v) => !v)
+          break
+        case "open-settings":
+          setShowSettings(true)
+          break
+        case "show-shortcuts":
+          setShowShortcuts(true)
+          break
+        case "reset-interface":
+          setExplorerHidden(false)
+          setAiHidden(false)
+          break
+      }
+    })
+    return () => { if (typeof unsub === "function") unsub() }
+  }, [openProject, handleCompile, getSelectedPath])
+
   const handleWelcomeComplete = useCallback(() => {
     localStorage.setItem("quenzatex-welcome-done", "true")
     setShowWelcome(false)
@@ -288,6 +330,7 @@ export function AppLayout() {
               <EditorPanel
                 filePath={getSelectedPath()}
                 fileContent={fileContent}
+                onContentChange={(v) => { editorContentRef.current = v ?? "" }}
                 onSave={handleSave}
               />
             </ResizablePanel>
@@ -332,6 +375,7 @@ export function AppLayout() {
       {!showWelcome && showSetup && <SetupWizard onComplete={handleSetupComplete} />}
       {!showWelcome && !showSetup && showTip && <TipOfTheDay onClose={() => setShowTip(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
     </div>
   )
 }

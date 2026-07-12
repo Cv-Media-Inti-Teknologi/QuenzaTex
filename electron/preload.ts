@@ -47,4 +47,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("project:files-changed", handler)
     }
   },
+  onMenuAction: (callback: (action: string) => void) => {
+    const handler = (_: unknown, action: string) => callback(action)
+    ipcRenderer.on("menu:action", handler)
+    return () => {
+      ipcRenderer.removeListener("menu:action", handler)
+    }
+  },
 })

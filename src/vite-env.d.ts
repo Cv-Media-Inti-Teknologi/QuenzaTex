@@ -106,6 +106,7 @@ interface ElectronAPI {
   sessionDelete: (projectPath: string) => Promise<boolean>
   sessionList: () => Promise<{ path: string; lastOpened: string }[]>
   onFilesChanged: (callback: () => void) => () => void
+  onMenuAction: (callback: (action: string) => void) => () => void
 }
 
 interface Window {

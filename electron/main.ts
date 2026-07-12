@@ -27,6 +27,7 @@ import {
   type ChatMessageData,
 } from "./services/session"
 import { logger, logFromRenderer } from "./services/logger"
+import { buildAppMenu } from "./menu"
 
 let mainWindow: BrowserWindow | null = null
 let currentProjectDir: string | null = null
@@ -368,6 +369,7 @@ app.whenReady().then(() => {
 
   registerIpcHandlers()
   createWindow()
+  buildAppMenu(mainWindow)
   logger.ready("Window created")
 
   startOpenCode()
@@ -377,6 +379,7 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       logger.lifecycle("Reactivated (macOS)")
       createWindow()
+      buildAppMenu(mainWindow)
     }
   })
 })
