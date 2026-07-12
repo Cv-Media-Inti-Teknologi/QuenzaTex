@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { logger } from "../../lib/logger"
 import { ExplorerPanel } from "./ExplorerPanel"
 import { EditorPanel } from "./EditorPanel"
@@ -117,6 +117,23 @@ export function AppLayout() {
     }))
     session.save(path, serialized)
   }, [chatMessages])
+
+  const availableFiles = useMemo(() => {
+    if (!project?.files) return []
+    const flat: { name: string; path: string }[] = []
+    const walk = (nodes: any[]) => {
+      for (const n of nodes) {
+        if (!n.isDirectory) {
+          flat.push({ name: n.name, path: n.path })
+        }
+        if (n.children) {
+          walk(n.children)
+        }
+      }
+    }
+    walk(project.files)
+    return flat
+  }, [project?.files])
 
   const handleSelectFile = useCallback(async (path: string) => {
     selectFile(path)
@@ -290,6 +307,7 @@ export function AppLayout() {
                 sending={chatSending}
                 onSend={sendChatMessage}
                 onClear={clearMessages}
+                availableFiles={availableFiles}
               />
             </ResizablePanel>
           </>

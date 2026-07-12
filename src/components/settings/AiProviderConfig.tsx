@@ -182,22 +182,36 @@ export function AiProviderConfig() {
         <div className="space-y-2">
           <Label>Provider</Label>
           <Select
-            value={selectedProvider}
-            onValueChange={(v) => setSelectedProvider(v)}
+            value={usingFree ? "__free__" : selectedProvider}
+            onValueChange={(v) => {
+              if (v === "__free__") {
+                handleUseFree()
+              } else {
+                setSelectedProvider(v)
+              }
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Choose a provider…" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="__free__">
+                <span className="flex items-center gap-2">
+                  <Sparkles size={13} className="text-primary" />
+                  Free (opencode default)
+                </span>
+              </SelectItem>
               {curated.map((prov) => {
                 const st = statusFor(prov.id)
                 return (
                   <SelectItem key={prov.id} value={prov.id}>
                     <span className="flex items-center gap-2">
                       {prov.name}
-                      {st?.connected && (
-                        <span className="text-emerald-600 text-xs">•
-                          connected</span>
+                      {st?.connected && st.authType === "api" && (
+                        <span className="text-emerald-600 text-xs">• connected</span>
+                      )}
+                      {st?.connected && st.authType === "oauth" && (
+                        <span className="text-muted-foreground text-xs">• via opencode</span>
                       )}
                     </span>
                   </SelectItem>
@@ -207,10 +221,10 @@ export function AiProviderConfig() {
           </Select>
         </div>
 
-        {selectedProvider && (
+        {selectedProvider && !usingFree && (
           <ProviderDetail
             provider={curated.find((c) => c.id === selectedProvider)!}
-            connected={!!statusFor(selectedProvider)?.connected}
+            status={statusFor(selectedProvider)}
             apiKey={apiKey}
             setApiKey={setApiKey}
             showKey={showKey}
@@ -231,7 +245,7 @@ export function AiProviderConfig() {
 
 function ProviderDetail({
   provider,
-  connected,
+  status,
   apiKey,
   setApiKey,
   showKey,
@@ -245,7 +259,7 @@ function ProviderDetail({
   onSelectModel,
 }: {
   provider: CuratedProvider
-  connected: boolean
+  status: ProviderStatus | undefined
   apiKey: string
   setApiKey: (v: string) => void
   showKey: boolean
@@ -258,20 +272,33 @@ function ProviderDetail({
   activeModel: string
   onSelectModel: (full: string) => void
 }) {
+  const connected = !!status?.connected
+  const viaOpencode = connected && status?.authType === "oauth"
+  const hasOwnKey = connected && status?.authType === "api"
+
   return (
     <div className="rounded-xl border p-4 space-y-4 bg-muted/30">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-foreground">
           {provider.name}
         </span>
-        {connected ? (
+        {hasOwnKey ? (
           <Badge variant="success" className="gap-1">
             <Check size={11} /> Connected
           </Badge>
+        ) : viaOpencode ? (
+          <Badge variant="muted">via opencode</Badge>
         ) : (
           <Badge variant="muted">No key</Badge>
         )}
       </div>
+
+      {viaOpencode && (
+        <p className="text-[11px] text-muted-foreground -mt-1">
+          Already signed in through opencode. You can use it as-is, or paste your
+          own API key below to override.
+        </p>
+      )}
 
       {/* API key input */}
       <div className="space-y-2">
@@ -282,7 +309,7 @@ function ProviderDetail({
               type={showKey ? "text" : "password"}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={connected ? "•••••••• (saved)" : "Paste your API key"}
+              placeholder={hasOwnKey ? "•••••••• (saved)" : "Paste your API key"}
               className="pr-9"
             />
             <button
@@ -308,7 +335,7 @@ function ProviderDetail({
             Get API key <ExternalLink size={10} />
           </a>
         </div>
-        {connected && (
+        {hasOwnKey && (
           <Button
             variant="ghost"
             size="sm"
@@ -320,7 +347,7 @@ function ProviderDetail({
         )}
       </div>
 
-      {/* Model selector */}
+      {/* Model selector — available whenever the provider is usable */}
       {connected && (
         <div className="space-y-2">
           <Label>Model</Label>

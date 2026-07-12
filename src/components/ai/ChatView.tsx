@@ -19,9 +19,10 @@ interface Props {
   onSend: (message: string) => void
   onClear: () => void
   onClose?: () => void
+  availableFiles: { name: string; path: string }[]
 }
 
-export function ChatView({ messages, sending, onSend, onClear, onClose }: Props) {
+export function ChatView({ messages, sending, onSend, onClear, onClose, availableFiles }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -128,7 +129,7 @@ export function ChatView({ messages, sending, onSend, onClear, onClose }: Props)
         </div>
       </ScrollArea>
 
-      <MessageInput onSend={onSend} disabled={sending} />
+      <MessageInput onSend={onSend} disabled={sending} availableFiles={availableFiles} />
     </div>
   )
 }

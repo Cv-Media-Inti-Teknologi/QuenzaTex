@@ -31,7 +31,7 @@ export function SettingsDialog({ onClose }: Props) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[680px] max-w-[92vw] max-h-[85vh] flex flex-col p-0 gap-0">
+      <DialogContent className="w-[680px] max-w-[92vw] h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2">
             <Wrench size={18} className="text-muted-foreground" />

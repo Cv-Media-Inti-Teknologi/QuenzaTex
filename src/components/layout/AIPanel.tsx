@@ -7,9 +7,10 @@ interface Props {
   sending: boolean
   onSend: (message: string) => void
   onClear: () => void
+  availableFiles: { name: string; path: string }[]
 }
 
-export function AIPanel({ onClose, messages, sending, onSend, onClear }: Props) {
+export function AIPanel({ onClose, messages, sending, onSend, onClear, availableFiles }: Props) {
   return (
     <div className="h-full w-full flex flex-col min-h-0 bg-background border-l">
       <ChatView
@@ -18,6 +19,7 @@ export function AIPanel({ onClose, messages, sending, onSend, onClear }: Props) 
         onSend={onSend}
         onClear={onClear}
         onClose={onClose}
+        availableFiles={availableFiles}
       />
     </div>
   )
