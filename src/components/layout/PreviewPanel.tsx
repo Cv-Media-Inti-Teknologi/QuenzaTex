@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button"
 
 interface Props {
   pdfPath: string | null
+  pdfVersion?: number
   onCompile?: () => void
   compiling?: boolean
 }
 
-export function PreviewPanel({ pdfPath, onCompile, compiling }: Props) {
+export function PreviewPanel({ pdfPath, pdfVersion, onCompile, compiling }: Props) {
   return (
     <div className="h-full flex flex-col min-h-0 bg-background min-w-0">
       <div className="flex items-center justify-between px-4 h-11 border-b shrink-0">
@@ -33,7 +34,7 @@ export function PreviewPanel({ pdfPath, onCompile, compiling }: Props) {
         )}
       </div>
       <div className="flex flex-1 min-h-0">
-        <PdfPreview pdfPath={pdfPath} />
+        <PdfPreview pdfPath={pdfPath} pdfVersion={pdfVersion} />
       </div>
     </div>
   )

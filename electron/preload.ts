@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   latexCheck: () => ipcRenderer.invoke("latex:check"),
   latexWatch: (file: string) => ipcRenderer.invoke("latex:watch", file),
   latexStopWatch: () => ipcRenderer.invoke("latex:stop-watch"),
+  readPdf: (path: string) => ipcRenderer.invoke("pdf:read", path),
+  readImage: (path: string) => ipcRenderer.invoke("image:read", path),
   onLatexResult: (callback: (result: any) => void) => {
     ipcRenderer.on("latex:compile-result", (_, result) => callback(result))
   },
