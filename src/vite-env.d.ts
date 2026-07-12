@@ -20,8 +20,7 @@ interface CompileResult {
 
 interface OpenCodeStatus {
   running: boolean
-  mode: "http" | "cli" | "off"
-  port: number
+  mode: "cli" | "off"
 }
 
 interface ChatMessageData {
@@ -41,12 +40,15 @@ interface ElectronAPI {
   latexWatch: (file: string) => Promise<boolean>
   latexStopWatch: () => Promise<boolean>
   onLatexResult: (callback: (result: CompileResult) => void) => void
-  opencodeStart: () => Promise<OpenCodeStatus>
-  opencodeStop: () => Promise<boolean>
-  opencodeSend: (message: string) => Promise<string>
-  opencodeSendWithContext: (message: string, projectPath: string, fileList?: string) => Promise<string>
   opencodeStatus: () => Promise<OpenCodeStatus>
   opencodeCheckInstalled: () => Promise<boolean>
+  opencodeSendWithContext: (
+    message: string,
+    projectPath: string,
+    fileList?: string,
+    history?: { role: string; content: string }[],
+    model?: string
+  ) => Promise<string>
   checkEnvironment: () => Promise<{
     node: { found: boolean; version: string }
     opencode: { found: boolean; version: string }

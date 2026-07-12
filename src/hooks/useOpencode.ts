@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useRef } from "react"
 import { parseMentions, buildPromptWithContext } from "../lib/mention-parser"
 
 export interface ChatMessage {
@@ -9,7 +9,6 @@ export interface ChatMessage {
 }
 
 interface OpenCodeState {
-  status: OpenCodeStatus
   messages: ChatMessage[]
   sending: boolean
 }
@@ -23,42 +22,21 @@ function genId() {
 
 export function useOpencode() {
   const [state, setState] = useState<OpenCodeState>({
-    status: { running: false, mode: "off", port: 0 },
     messages: [],
     sending: false,
   })
-  const initialized = useRef(false)
-  const projectContextRef = useRef<{ projectPath: string; fileList?: string } | null>(null)
+  const projectContextRef = useRef<{ projectPath: string; fileList?: string; model?: string } | null>(null)
+  const messagesRef = useRef<ChatMessage[]>([])
 
-  useEffect(() => {
-    if (initialized.current) return
-    initialized.current = true
+  // Keep ref in sync with state
+  messagesRef.current = state.messages
 
-    const init = async () => {
-      try {
-        const status = await window.electronAPI.opencodeStatus()
-        setState((s) => ({ ...s, status }))
-      } catch {
-        // ignore
-      }
-    }
-    init()
-  }, [])
-
-  // Listen for server restart/status changes
-  useEffect(() => {
-    if (typeof window.electronAPI.onOpencodeStatusChanged !== "function") return
-    const unsub = window.electronAPI.onOpencodeStatusChanged((status) => {
-      setState((s) => ({ ...s, status }))
-    })
-    return () => { if (typeof unsub === "function") unsub() }
-  }, [])
-
-  const setProjectContext = useCallback((ctx: { projectPath: string; fileList?: string } | null) => {
+  const setProjectContext = useCallback((ctx: { projectPath: string; fileList?: string; model?: string } | null) => {
     projectContextRef.current = ctx
   }, [])
 
   const restoreMessages = useCallback((messages: ChatMessage[]) => {
+    messagesRef.current = messages
     setState((s) => ({ ...s, messages }))
   }, [])
 
@@ -69,6 +47,12 @@ export function useOpencode() {
       content: text,
       timestamp: new Date(),
     }
+
+    // Build history from ref BEFORE adding current message
+    const history = messagesRef.current.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }))
 
     setState((s) => ({
       ...s,
@@ -91,9 +75,7 @@ export function useOpencode() {
             if (content !== null) {
               contexts.push({ path: mention.name, content })
             }
-          } catch {
-            // file not found, skip
-          }
+          } catch {}
         }
 
         finalText = buildPromptWithContext(text, contexts)
@@ -102,7 +84,9 @@ export function useOpencode() {
       const response = await window.electronAPI.opencodeSendWithContext(
         finalText,
         projectContextRef.current?.projectPath || "",
-        projectContextRef.current?.fileList
+        projectContextRef.current?.fileList,
+        history,
+        projectContextRef.current?.model
       )
 
       const assistantMsg: ChatMessage = {
@@ -134,11 +118,11 @@ export function useOpencode() {
   }, [])
 
   const clearMessages = useCallback(() => {
+    messagesRef.current = []
     setState((s) => ({ ...s, messages: [] }))
   }, [])
 
   return {
-    status: state.status,
     messages: state.messages,
     sending: state.sending,
     sendMessage,

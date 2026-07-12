@@ -14,30 +14,21 @@ interface Props {
   sending: boolean
   onSend: (message: string) => void
   onClear: () => void
-  status: { running: boolean; mode: string }
 }
 
-export function ChatView({ messages, sending, onSend, onClear, status }: Props) {
+export function ChatView({ messages, sending, onSend, onClear }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const statusColor = status.running
-    ? status.mode === "http" ? "bg-green-500" : "bg-yellow-500"
-    : "bg-red-500"
-
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] shrink-0">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${statusColor}`} />
-          <span className="text-xs text-gray-500">
-            {status.running
-              ? `OpenCode (${status.mode})`
-              : "OpenCode offline"}
-          </span>
+          <span className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="text-xs text-gray-500">OpenCode</span>
         </div>
         {messages.length > 0 && (
           <button

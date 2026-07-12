@@ -3,12 +3,10 @@ import path from "path"
 import fs from "fs"
 import { compileLatex, checkLatexInstallation, startLatexWatch } from "./services/latex"
 import {
-  startOpenCode,
-  stopOpenCode,
   getOpenCodeStatus,
   sendOpenCodeMessage,
   isOpenCodeInstalled,
-  setProjectPath,
+  startOpenCode,
 } from "./services/opencode"
 import { checkEnvironment, installOpencode } from "./services/env-setup"
 import {
@@ -81,9 +79,6 @@ function registerIpcHandlers() {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     currentProjectDir = result.filePaths[0]
-    await setProjectPath(currentProjectDir)
-    const newStatus = getOpenCodeStatus()
-    mainWindow?.webContents.send("opencode:status-changed", newStatus)
     return { path: currentProjectDir, files: getAllFiles(currentProjectDir) }
   })
 
@@ -136,33 +131,34 @@ function registerIpcHandlers() {
     return true
   })
 
-  ipcMain.handle("opencode:start", async () => {
-    return startOpenCode(currentProjectDir || undefined)
-  })
-
-  ipcMain.handle("opencode:stop", async () => {
-    stopOpenCode()
-    return true
-  })
-
   ipcMain.handle("opencode:status", async () => {
     return getOpenCodeStatus()
-  })
-
-  ipcMain.handle("opencode:send", async (_, message: string) => {
-    const response = await sendOpenCodeMessage(message)
-    return response
-  })
-
-  ipcMain.handle("opencode:send-with-context", async (_, message: string, projectPath: string, fileList?: string) => {
-    const response = await sendOpenCodeMessage(message, { projectPath, fileList })
-    mainWindow?.webContents.send("project:files-changed")
-    return response
   })
 
   ipcMain.handle("opencode:check-installed", async () => {
     return isOpenCodeInstalled()
   })
+
+  ipcMain.handle(
+    "opencode:send-with-context",
+    async (
+      _,
+      message: string,
+      projectPath: string,
+      fileList?: string,
+      conversationHistory?: { role: string; content: string }[],
+      model?: string
+    ) => {
+      const response = await sendOpenCodeMessage(message, {
+        projectPath,
+        fileList,
+        conversationHistory,
+        model,
+      })
+      mainWindow?.webContents.send("project:files-changed")
+      return response
+    }
+  )
 
   ipcMain.handle("env:check", async () => {
     return checkEnvironment()
@@ -195,17 +191,11 @@ app.whenReady().then(() => {
   registerIpcHandlers()
   createWindow()
 
-  startOpenCode().then((status) => {
-    console.log(`OpenCode started: ${status.mode} mode`)
-  })
+  startOpenCode()
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-})
-
-app.on("before-quit", () => {
-  stopOpenCode()
 })
 
 app.on("window-all-closed", () => {
