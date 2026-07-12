@@ -5,8 +5,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readFile: (path: string) => ipcRenderer.invoke("file:read", path),
   writeFile: (path: string, content: string) => ipcRenderer.invoke("file:write", path, content),
   listDir: (dir: string) => ipcRenderer.invoke("file:listDir", dir),
+  latexCompile: (file: string) => ipcRenderer.invoke("latex:compile", file),
+  latexCheck: () => ipcRenderer.invoke("latex:check"),
+  latexWatch: (file: string) => ipcRenderer.invoke("latex:watch", file),
+  latexStopWatch: () => ipcRenderer.invoke("latex:stop-watch"),
+  onLatexResult: (callback: (result: any) => void) => {
+    ipcRenderer.on("latex:compile-result", (_, result) => callback(result))
+  },
   opencodeSend: (message: string) => ipcRenderer.invoke("opencode:send", message),
   opencodeStatus: () => ipcRenderer.invoke("opencode:status"),
-  compileLatex: (file: string) => ipcRenderer.invoke("latex:compile", file),
   getEnvStatus: () => ipcRenderer.invoke("env:status"),
 })

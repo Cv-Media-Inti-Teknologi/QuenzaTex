@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { ExplorerPanel } from "./ExplorerPanel"
 import { EditorPanel } from "./EditorPanel"
 import { PreviewPanel } from "./PreviewPanel"
@@ -12,14 +12,15 @@ export function AppLayout() {
   const [explorerHidden, setExplorerHidden] = useState(false)
   const [aiHidden, setAiHidden] = useState(false)
   const [fileContent, setFileContent] = useState<string | null>(null)
+  const [pdfPath, setPdfPath] = useState<string | null>(null)
+  const [compiling, setCompiling] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const {
     project,
-    loading,
     openProject,
     expandDir,
     selectFile,
-    getSelectedContent,
     getSelectedPath,
   } = useFileExplorer()
 
@@ -27,12 +28,29 @@ export function AppLayout() {
     selectFile(path)
     const content = await window.electronAPI.readFile(path)
     setFileContent(content)
+    if (path.endsWith(".tex")) {
+      setPdfPath(null)
+    }
   }, [selectFile])
 
   const handleSave = useCallback(async (content: string) => {
     const path = getSelectedPath()
     if (path) {
       await window.electronAPI.writeFile(path, content)
+    }
+  }, [getSelectedPath])
+
+  const handleCompile = useCallback(async () => {
+    const path = getSelectedPath()
+    if (!path || !path.endsWith(".tex")) return
+    setCompiling(true)
+    try {
+      const result = await window.electronAPI.latexCompile(path)
+      if (result.pdfPath) {
+        setPdfPath(result.pdfPath)
+      }
+    } finally {
+      setCompiling(false)
     }
   }, [getSelectedPath])
 
@@ -49,7 +67,11 @@ export function AppLayout() {
       e.preventDefault()
       openProject()
     }
-  }, [openProject])
+    if (e.ctrlKey && e.key === "Enter" && getSelectedPath()?.endsWith(".tex")) {
+      e.preventDefault()
+      handleCompile()
+    }
+  }, [openProject, handleCompile, getSelectedPath])
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown)
@@ -57,7 +79,7 @@ export function AppLayout() {
   }, [handleKeyDown])
 
   return (
-    <div className="h-screen w-screen flex bg-white overflow-hidden select-none">
+    <div ref={containerRef} className="h-screen w-screen flex bg-white overflow-hidden select-none">
       {!explorerHidden && (
         <>
           <ExplorerPanel
@@ -91,7 +113,11 @@ export function AppLayout() {
             }}
           />
           <div className="flex-1 min-w-0 flex flex-col">
-            <PreviewPanel />
+            <PreviewPanel
+              pdfPath={pdfPath}
+              onCompile={handleCompile}
+              compiling={compiling}
+            />
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron"
 import path from "path"
 import fs from "fs"
+import { compileLatex, checkLatexInstallation, startLatexWatch } from "./services/latex"
 
 let mainWindow: BrowserWindow | null = null
 let currentProjectDir: string | null = null
@@ -80,6 +81,34 @@ function registerIpcHandlers() {
 
   ipcMain.handle("file:listDir", async (_, dirPath: string) => {
     return getAllFiles(dirPath)
+  })
+
+  let latexWatcher: { stop: () => void } | null = null
+
+  ipcMain.handle("latex:compile", async (_, filePath: string) => {
+    return compileLatex(filePath)
+  })
+
+  ipcMain.handle("latex:check", async () => {
+    return checkLatexInstallation()
+  })
+
+  ipcMain.handle("latex:watch", async (_, filePath: string) => {
+    if (latexWatcher) latexWatcher.stop()
+
+    latexWatcher = startLatexWatch(filePath, (result) => {
+      mainWindow?.webContents.send("latex:compile-result", result)
+    })
+
+    return true
+  })
+
+  ipcMain.handle("latex:stop-watch", async () => {
+    if (latexWatcher) {
+      latexWatcher.stop()
+      latexWatcher = null
+    }
+    return true
   })
 }
 
