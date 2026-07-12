@@ -4,6 +4,7 @@ import { ExplorerPanel } from "./ExplorerPanel"
 import { EditorPanel } from "./EditorPanel"
 import { PreviewPanel } from "./PreviewPanel"
 import { AIPanel } from "./AIPanel"
+import { WelcomeOnboarding } from "../onboarding/WelcomeOnboarding"
 import { SetupWizard } from "../onboarding/SetupWizard"
 import { SettingsDialog } from "../settings/SettingsDialog"
 import {
@@ -38,6 +39,7 @@ export function AppLayout() {
   const [imageVersion, setImageVersion] = useState(0)
   const [previewKind, setPreviewKind] = useState<"pdf" | "image" | null>(null)
   const [compiling, setCompiling] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem("quenzatex-welcome-done"))
   const [showSetup, setShowSetup] = useState(() => !localStorage.getItem("quenzatex-setup-done"))
   const [showSettings, setShowSettings] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -213,6 +215,12 @@ export function AppLayout() {
     return () => { if (typeof unsub === "function") unsub() }
   }, [refreshFiles])
 
+  const handleWelcomeComplete = useCallback(() => {
+    localStorage.setItem("quenzatex-welcome-done", "true")
+    setShowWelcome(false)
+    logger.lifecycle("Welcome onboarding completed")
+  }, [])
+
   const handleSetupComplete = useCallback(() => {
     localStorage.setItem("quenzatex-setup-done", "true")
     setShowSetup(false)
@@ -288,7 +296,8 @@ export function AppLayout() {
         )}
       </ResizablePanelGroup>
 
-      {showSetup && <SetupWizard onComplete={handleSetupComplete} />}
+      {showWelcome && <WelcomeOnboarding onComplete={handleWelcomeComplete} />}
+      {!showWelcome && showSetup && <SetupWizard onComplete={handleSetupComplete} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   )
