@@ -2,6 +2,13 @@ import { app, BrowserWindow, ipcMain, dialog } from "electron"
 import path from "path"
 import fs from "fs"
 import { compileLatex, checkLatexInstallation, startLatexWatch } from "./services/latex"
+import {
+  startOpenCode,
+  stopOpenCode,
+  getOpenCodeStatus,
+  sendOpenCodeMessage,
+  isOpenCodeInstalled,
+} from "./services/opencode"
 
 let mainWindow: BrowserWindow | null = null
 let currentProjectDir: string | null = null
@@ -110,15 +117,48 @@ function registerIpcHandlers() {
     }
     return true
   })
+
+  ipcMain.handle("opencode:start", async () => {
+    return startOpenCode()
+  })
+
+  ipcMain.handle("opencode:stop", async () => {
+    stopOpenCode()
+    return true
+  })
+
+  ipcMain.handle("opencode:status", async () => {
+    return getOpenCodeStatus()
+  })
+
+  ipcMain.handle("opencode:send", async (_, message: string) => {
+    return sendOpenCodeMessage(message)
+  })
+
+  ipcMain.handle("opencode:send-with-context", async (_, message: string, paths: string[]) => {
+    return sendOpenCodeMessage(message, paths)
+  })
+
+  ipcMain.handle("opencode:check-installed", async () => {
+    return isOpenCodeInstalled()
+  })
 }
 
 app.whenReady().then(() => {
   registerIpcHandlers()
   createWindow()
 
+  startOpenCode().then((status) => {
+    console.log(`OpenCode started: ${status.mode} mode`)
+  })
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on("before-quit", () => {
+  stopOpenCode()
 })
 
 app.on("window-all-closed", () => {

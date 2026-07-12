@@ -5,6 +5,7 @@ import { PreviewPanel } from "./PreviewPanel"
 import { AIPanel } from "./AIPanel"
 import { ResizeHandle } from "./ResizeHandle"
 import { useFileExplorer } from "../../hooks/useFileExplorer"
+import { useOpencode } from "../../hooks/useOpencode"
 
 export function AppLayout() {
   const [explorerWidth, setExplorerWidth] = useState(250)
@@ -23,6 +24,14 @@ export function AppLayout() {
     selectFile,
     getSelectedPath,
   } = useFileExplorer()
+
+  const {
+    status: opencodeStatus,
+    messages: chatMessages,
+    sending: chatSending,
+    sendMessage: sendChatMessage,
+    clearMessages,
+  } = useOpencode()
 
   const handleSelectFile = useCallback(async (path: string) => {
     selectFile(path)
@@ -132,6 +141,11 @@ export function AppLayout() {
           <AIPanel
             width={aiWidth}
             onClose={() => setAiHidden(true)}
+            messages={chatMessages}
+            sending={chatSending}
+            onSend={sendChatMessage}
+            onClear={clearMessages}
+            status={opencodeStatus}
           />
         </>
       )}

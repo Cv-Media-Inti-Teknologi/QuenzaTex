@@ -1,11 +1,17 @@
 import { Bot, PanelRightClose } from "lucide-react"
+import { ChatView } from "../ai/ChatView"
 
 interface Props {
   width: number
   onClose: () => void
+  messages: { id: string; role: "user" | "assistant"; content: string; timestamp: Date }[]
+  sending: boolean
+  onSend: (message: string) => void
+  onClear: () => void
+  status: { running: boolean; mode: string }
 }
 
-export function AIPanel({ width, onClose }: Props) {
+export function AIPanel({ width, onClose, messages, sending, onSend, onClear, status }: Props) {
   return (
     <div
       className="h-full flex flex-col bg-white border-l border-[var(--border)]"
@@ -23,21 +29,13 @@ export function AIPanel({ width, onClose }: Props) {
           <PanelRightClose size={15} />
         </button>
       </div>
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-3">
-          <p className="text-sm text-gray-400 text-center mt-8">
-            Start a conversation with AI
-          </p>
-        </div>
-        <div className="border-t border-[var(--border)] p-3">
-          <input
-            type="text"
-            placeholder="Ask AI... (@ to mention files)"
-            className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg
-              focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400"
-          />
-        </div>
-      </div>
+      <ChatView
+        messages={messages}
+        sending={sending}
+        onSend={onSend}
+        onClear={onClear}
+        status={status}
+      />
     </div>
   )
 }

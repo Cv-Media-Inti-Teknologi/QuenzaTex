@@ -18,6 +18,12 @@ interface CompileResult {
   errors: { line: number; message: string }[]
 }
 
+interface OpenCodeStatus {
+  running: boolean
+  mode: "http" | "cli" | "off"
+  port: number
+}
+
 interface ElectronAPI {
   openProject: () => Promise<ProjectInfo | null>
   readFile: (path: string) => Promise<string | null>
@@ -28,8 +34,12 @@ interface ElectronAPI {
   latexWatch: (file: string) => Promise<boolean>
   latexStopWatch: () => Promise<boolean>
   onLatexResult: (callback: (result: CompileResult) => void) => void
+  opencodeStart: () => Promise<OpenCodeStatus>
+  opencodeStop: () => Promise<boolean>
   opencodeSend: (message: string) => Promise<string>
-  opencodeStatus: () => Promise<{ running: boolean; mode: string }>
+  opencodeSendWithContext: (message: string, paths: string[]) => Promise<string>
+  opencodeStatus: () => Promise<OpenCodeStatus>
+  opencodeCheckInstalled: () => Promise<boolean>
   getEnvStatus: () => Promise<Record<string, { installed: boolean; version?: string }>>
 }
 

@@ -12,7 +12,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onLatexResult: (callback: (result: any) => void) => {
     ipcRenderer.on("latex:compile-result", (_, result) => callback(result))
   },
+  opencodeStart: () => ipcRenderer.invoke("opencode:start"),
+  opencodeStop: () => ipcRenderer.invoke("opencode:stop"),
   opencodeSend: (message: string) => ipcRenderer.invoke("opencode:send", message),
+  opencodeSendWithContext: (message: string, paths: string[]) =>
+    ipcRenderer.invoke("opencode:send-with-context", message, paths),
   opencodeStatus: () => ipcRenderer.invoke("opencode:status"),
+  opencodeCheckInstalled: () => ipcRenderer.invoke("opencode:check-installed"),
   getEnvStatus: () => ipcRenderer.invoke("env:status"),
 })

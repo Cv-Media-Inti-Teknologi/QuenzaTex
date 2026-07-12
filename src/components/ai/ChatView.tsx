@@ -1,0 +1,106 @@
+import { useEffect, useRef } from "react"
+import { Bot, User, Loader2 } from "lucide-react"
+import { MessageInput } from "./MessageInput"
+
+interface ChatMessage {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  timestamp: Date
+}
+
+interface Props {
+  messages: ChatMessage[]
+  sending: boolean
+  onSend: (message: string) => void
+  onClear: () => void
+  status: { running: boolean; mode: string }
+}
+
+export function ChatView({ messages, sending, onSend, onClear, status }: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  const statusColor = status.running
+    ? status.mode === "http" ? "bg-green-500" : "bg-yellow-500"
+    : "bg-red-500"
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] shrink-0">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${statusColor}`} />
+          <span className="text-xs text-gray-500">
+            {status.running
+              ? `OpenCode (${status.mode})`
+              : "OpenCode offline"}
+          </span>
+        </div>
+        {messages.length > 0 && (
+          <button
+            onClick={onClear}
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {messages.length === 0 && (
+          <div className="text-center mt-8">
+            <Bot size={32} className="mx-auto text-gray-300 mb-2" />
+            <p className="text-sm text-gray-400">
+              Start a conversation with AI
+            </p>
+            <p className="text-xs text-gray-300 mt-1">
+              Use @filename.tex to reference files
+            </p>
+          </div>
+        )}
+
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+          >
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0
+                ${msg.role === "user"
+                  ? "bg-blue-100 text-blue-600"
+                  : "bg-gray-100 text-gray-600"}`}
+            >
+              {msg.role === "user" ? <User size={14} /> : <Bot size={14} />}
+            </div>
+            <div
+              className={`max-w-[85%] px-3 py-2 rounded-xl text-sm
+                ${msg.role === "user"
+                  ? "bg-blue-500 text-white rounded-tr-sm"
+                  : "bg-[var(--muted)] text-gray-700 rounded-tl-sm"}`}
+            >
+              <p className="whitespace-pre-wrap">{msg.content}</p>
+            </div>
+          </div>
+        ))}
+
+        {sending && (
+          <div className="flex gap-2">
+            <div className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center shrink-0">
+              <Bot size={14} />
+            </div>
+            <div className="bg-[var(--muted)] px-3 py-2 rounded-xl rounded-tl-sm">
+              <Loader2 size={16} className="animate-spin text-gray-400" />
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      <MessageInput onSend={onSend} disabled={sending} />
+    </div>
+  )
+}
