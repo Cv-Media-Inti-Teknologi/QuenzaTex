@@ -1,4 +1,4 @@
-import { RotateCcw, Bot, FileEdit, FileText, Wrench } from "lucide-react"
+import { RotateCcw, Bot, FileEdit, FileText, Wrench, Settings } from "lucide-react"
 import { AiProviderConfig } from "./AiProviderConfig"
 import { EnvStatus } from "./EnvStatus"
 import { useSettings } from "../../store/SettingsContext"
@@ -27,7 +27,7 @@ interface Props {
 }
 
 export function SettingsDialog({ onClose }: Props) {
-  const { settings, updateEditor, updateLatex, resetSettings } = useSettings()
+  const { settings, updateGeneral, updateEditor, updateLatex, resetSettings } = useSettings()
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -42,9 +42,12 @@ export function SettingsDialog({ onClose }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="ai" className="flex flex-col flex-1 min-h-0">
+        <Tabs defaultValue="general" className="flex flex-col flex-1 min-h-0">
           <div className="px-6 pt-4">
             <TabsList>
+              <TabsTrigger value="general">
+                <Settings size={14} /> General
+              </TabsTrigger>
               <TabsTrigger value="ai">
                 <Bot size={14} /> AI Provider
               </TabsTrigger>
@@ -62,6 +65,18 @@ export function SettingsDialog({ onClose }: Props) {
 
           <ScrollArea className="flex-1 min-h-0">
             <div className="px-6 py-5">
+              <TabsContent value="general" className="mt-0 space-y-5">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.general?.showTipOfTheDay ?? true}
+                    onChange={(e) => updateGeneral({ showTipOfTheDay: e.target.checked })}
+                    className="rounded border-input"
+                  />
+                  <span className="text-sm text-foreground">Show "Tip of The Day" on startup</span>
+                </label>
+              </TabsContent>
+
               <TabsContent value="ai" className="mt-0">
                 <AiProviderConfig />
               </TabsContent>

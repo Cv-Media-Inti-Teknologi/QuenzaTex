@@ -24,6 +24,17 @@ export interface CuratedProvider {
   hint: string
   /** example model ids for quick reference */
   exampleModels: string[]
+  /** true for the "Custom (OpenAI-compatible)" pseudo-provider */
+  custom?: boolean
+}
+
+export interface CustomProviderConfig {
+  /** provider id used in opencode.json (slug) */
+  id: string
+  name: string
+  baseURL: string
+  apiKey: string
+  modelId: string
 }
 
 export interface ProviderStatus {
@@ -61,6 +72,14 @@ const CURATED_PROVIDERS: CuratedProvider[] = [
     keyUrl: "https://console.anthropic.com/settings/keys",
     hint: "Paste your Anthropic API key (starts with sk-ant-...).",
     exampleModels: ["anthropic/claude-sonnet-4-5", "anthropic/claude-3-5-haiku"],
+  },
+  {
+    id: "custom",
+    name: "Custom (OpenAI-compatible)",
+    keyUrl: "https://opencode.ai/docs/providers/",
+    hint: "Connect any OpenAI-compatible endpoint (LM Studio, Ollama, Groq, etc.).",
+    exampleModels: [],
+    custom: true,
   },
 ]
 
@@ -141,6 +160,78 @@ export function removeApiKey(providerId: string): { ok: boolean; error?: string 
 }
 
 let modelCache: ModelEntry[] | null = null
+
+/** Global opencode config path: ~/.config/opencode/opencode.json */
+function getConfigPath(): string {
+  return path.join(os.homedir(), ".config", "opencode", "opencode.json")
+}
+
+function readConfigJson(): Record<string, any> {
+  const p = getConfigPath()
+  if (!existsSync(p)) return { $schema: "https://opencode.ai/config.json" }
+  try {
+    return JSON.parse(readFileSync(p, "utf-8")) || {}
+  } catch (err) {
+    logger.warn("Failed to parse opencode.json", err)
+    return { $schema: "https://opencode.ai/config.json" }
+  }
+}
+
+function writeConfigJson(data: Record<string, any>): void {
+  const p = getConfigPath()
+  const dir = path.dirname(p)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(p, JSON.stringify(data, null, 2), "utf-8")
+}
+
+/**
+ * Configure a custom OpenAI-compatible provider in opencode.json, per the
+ * opencode docs (provider.<id>.npm = "@ai-sdk/openai-compatible", options.baseURL,
+ * options.apiKey, models map). Returns the full model id (provider/model).
+ */
+export function saveCustomProvider(
+  cfg: CustomProviderConfig
+): { ok: boolean; error?: string; model?: string } {
+  const id = (cfg.id || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "")
+  const baseURL = (cfg.baseURL || "").trim()
+  const apiKey = (cfg.apiKey || "").trim()
+  const modelId = (cfg.modelId || "").trim()
+  const name = (cfg.name || cfg.id || "Custom").trim()
+
+  if (!id || !baseURL || !modelId) {
+    return { ok: false, error: "Provider id, base URL, and model id are required." }
+  }
+
+  try {
+    // Store the key in auth.json (opencode's credential store)
+    if (apiKey) {
+      const auth = readAuthJson()
+      auth[id] = { type: "api", key: apiKey }
+      writeAuthJson(auth)
+    }
+
+    // Register the provider + model in opencode.json
+    const config = readConfigJson()
+    config.provider = config.provider || {}
+    config.provider[id] = {
+      npm: "@ai-sdk/openai-compatible",
+      name,
+      options: { baseURL },
+      models: {
+        [modelId]: { name: modelId },
+      },
+    }
+    writeConfigJson(config)
+
+    modelCache = null // invalidate so the new model shows up
+    const full = `${id}/${modelId}`
+    logger.ai(`Saved custom provider: ${full}`)
+    return { ok: true, model: full }
+  } catch (err: any) {
+    logger.error("Failed to save custom provider", err?.message)
+    return { ok: false, error: err?.message || "Failed to write config." }
+  }
+}
 
 /** List all available models via `opencode models`, parsed as provider/model. */
 export function listModels(force = false): ModelEntry[] {

@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   aiSaveKey: (providerId: string, key: string) => ipcRenderer.invoke("ai:save-key", providerId, key),
   aiRemoveKey: (providerId: string) => ipcRenderer.invoke("ai:remove-key", providerId),
   aiGetStatus: () => ipcRenderer.invoke("ai:get-status"),
+  aiSaveCustomProvider: (cfg: { id: string; name: string; baseURL: string; apiKey: string; modelId: string }) =>
+    ipcRenderer.invoke("ai:save-custom-provider", cfg),
   sessionLoad: (projectPath: string) => ipcRenderer.invoke("session:load", projectPath),
   sessionSave: (projectPath: string, messages: any[]) =>
     ipcRenderer.invoke("session:save", projectPath, messages),

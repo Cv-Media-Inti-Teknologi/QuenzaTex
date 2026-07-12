@@ -16,6 +16,7 @@ import {
   removeApiKey,
   listModels,
   listModelsForProvider,
+  saveCustomProvider,
 } from "./services/ai-config"
 import {
   loadSession,
@@ -303,6 +304,16 @@ function registerIpcHandlers() {
 
   ipcMain.handle("ai:get-status", async () => {
     return getProviderStatus()
+  })
+
+  ipcMain.handle("ai:save-custom-provider", async (_, cfg: {
+    id: string
+    name: string
+    baseURL: string
+    apiKey: string
+    modelId: string
+  }) => {
+    return saveCustomProvider(cfg)
   })
 
   ipcMain.handle("session:load", async (_, projectPath: string) => {

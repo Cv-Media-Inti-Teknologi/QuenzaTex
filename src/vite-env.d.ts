@@ -36,6 +36,7 @@ interface CuratedProvider {
   keyUrl: string
   hint: string
   exampleModels: string[]
+  custom?: boolean
 }
 
 interface ProviderStatus {
@@ -83,6 +84,13 @@ interface ElectronAPI {
   aiSaveKey: (providerId: string, key: string) => Promise<{ ok: boolean; error?: string }>
   aiRemoveKey: (providerId: string) => Promise<{ ok: boolean; error?: string }>
   aiGetStatus: () => Promise<ProviderStatus[]>
+  aiSaveCustomProvider: (cfg: {
+    id: string
+    name: string
+    baseURL: string
+    apiKey: string
+    modelId: string
+  }) => Promise<{ ok: boolean; error?: string; model?: string }>
   sessionLoad: (projectPath: string) => Promise<ChatMessageData[]>
   sessionSave: (projectPath: string, messages: ChatMessageData[]) => Promise<boolean>
   sessionDelete: (projectPath: string) => Promise<boolean>

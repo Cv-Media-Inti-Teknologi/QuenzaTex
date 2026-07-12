@@ -6,6 +6,7 @@ import { PreviewPanel } from "./PreviewPanel"
 import { AIPanel } from "./AIPanel"
 import { WelcomeOnboarding } from "../onboarding/WelcomeOnboarding"
 import { SetupWizard } from "../onboarding/SetupWizard"
+import { TipOfTheDay } from "../tips/TipOfTheDay"
 import { SettingsDialog } from "../settings/SettingsDialog"
 import {
   ResizablePanelGroup,
@@ -65,6 +66,9 @@ export function AppLayout() {
 
   const session = useSession()
   const { settings } = useSettings()
+  
+  // Track if we should show the tip of the day for this session
+  const [showTip, setShowTip] = useState(settings.general?.showTipOfTheDay ?? true)
 
   // When project changes, load session + set AI context
   useEffect(() => {
@@ -316,6 +320,7 @@ export function AppLayout() {
 
       {showWelcome && <WelcomeOnboarding onComplete={handleWelcomeComplete} />}
       {!showWelcome && showSetup && <SetupWizard onComplete={handleSetupComplete} />}
+      {!showWelcome && !showSetup && showTip && <TipOfTheDay onClose={() => setShowTip(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   )
