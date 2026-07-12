@@ -76,7 +76,7 @@ interface ElectronAPI {
     fileList?: string,
     history?: { role: string; content: string }[],
     model?: string
-  ) => Promise<string>
+  ) => Promise<{ response: string; changedFiles: string[] }>
   checkEnvironment: () => Promise<{
     node: { found: boolean; version: string }
     opencode: { found: boolean; version: string }
@@ -105,7 +105,7 @@ interface ElectronAPI {
   sessionSave: (projectPath: string, messages: ChatMessageData[]) => Promise<boolean>
   sessionDelete: (projectPath: string) => Promise<boolean>
   sessionList: () => Promise<{ path: string; lastOpened: string }[]>
-  onFilesChanged: (callback: () => void) => () => void
+  onFilesChanged: (callback: (changedFiles?: string[]) => void) => () => void
   onMenuAction: (callback: (action: string) => void) => () => void
 }
 

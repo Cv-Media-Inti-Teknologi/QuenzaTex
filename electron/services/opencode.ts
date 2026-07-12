@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readdirSync, statSync } from "node:fs"
 import path from "node:path"
 import { logger } from "./logger"
 
@@ -181,6 +181,70 @@ export function parseCliOutput(output: string, stderr: string): string {
   return parts.length > 0 ? parts.join("\n") : stdoutClean
 }
 
+/** File names touched, detected from write/edit/create markers in the output. */
+export function extractChangedFileNames(output: string, stderr: string): string[] {
+  const text = (output + "\n" + stderr).replace(/\x1b\[[0-9;]*m/g, "")
+  const found = new Set<string>()
+
+  // Match tool traces like "Write main.tex", "Wrote file main.tex", apply_patch markers
+  const patterns = [
+    /(?:Write|Wrote file|Edit|Created|Creating)\s+([^\s`"']+\.[A-Za-z0-9]+)/g,
+    /\*\*\*\s*(?:Add|Update) File:\s*([^\s`"']+\.[A-Za-z0-9]+)/g,
+    /\b([A-Za-z0-9_\-./\\]+\.tex)\b\s+(?:created|written|saved|updated)/gi,
+  ]
+  for (const re of patterns) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) {
+      const name = m[1].replace(/[.,;:]+$/, "").split(/[/\\]/).pop()
+      if (name) found.add(name)
+    }
+  }
+  return Array.from(found)
+}
+
+/**
+ * Build a concise summary line for file operations so the chat clearly shows
+ * what the agent produced (verbose models like GPT bury this in narration).
+ */
+export function summarizeChangedFiles(fileNames: string[]): string {
+  if (fileNames.length === 0) return ""
+  const label = fileNames.length === 1 ? "file" : "files"
+  return `📝 Updated ${label}: ${fileNames.map((f) => `\`${f}\``).join(", ")}`
+}
+
+export interface OpenCodeResult {
+  response: string
+  changedFiles: string[]
+}
+
+/** Snapshot of file name → mtimeMs for the project directory (shallow). */
+function snapshotDir(dir: string): Map<string, number> {
+  const snap = new Map<string, number>()
+  try {
+    for (const name of readdirSync(dir)) {
+      try {
+        const st = statSync(path.join(dir, name))
+        if (st.isFile()) snap.set(name, st.mtimeMs)
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return snap
+}
+
+/** Files that were created or modified between two snapshots. */
+function diffSnapshots(before: Map<string, number>, after: Map<string, number>): string[] {
+  const changed: string[] = []
+  for (const [name, mtime] of Array.from(after)) {
+    const prev = before.get(name)
+    if (prev === undefined || mtime > prev) changed.push(name)
+  }
+  return changed
+}
+
 export async function sendOpenCodeMessage(
   message: string,
   options?: {
@@ -189,9 +253,9 @@ export async function sendOpenCodeMessage(
     conversationHistory?: { role: string; content: string }[]
     model?: string
   }
-): Promise<string> {
+): Promise<OpenCodeResult> {
   if (!checkOpencodeInstalled()) {
-    return "OpenCode is not installed. Please set up in Settings."
+    return { response: "OpenCode is not installed. Please set up in Settings.", changedFiles: [] }
   }
 
     const prompt = buildPrompt(message, options)
@@ -222,10 +286,13 @@ export async function sendOpenCodeMessage(
     logger.ai(`CLI: ${bin} run --auto --agent build --model ${model} (prompt: ${prompt.length}B, shell:${needsShell})`)
     logger.ai(`PROMPT CONTENT:\n${prompt.slice(0, 2000)}`)
 
+    const projectDir = options?.projectPath || process.cwd()
+    const before = snapshotDir(projectDir)
+
     try {
       const start = Date.now()
       const result = spawnSync(bin, args, {
-        cwd: options?.projectPath || process.cwd(),
+        cwd: projectDir,
         shell: needsShell,
         timeout: 180000,
         encoding: "utf-8" as const,
@@ -252,20 +319,34 @@ export async function sendOpenCodeMessage(
         /unauthor|api[\s_-]?key|not\s+authenticated|no\s+credentials|ProviderAuth|401|forbidden|please\s+sign\s+in|auth\s+error/i
       if (authProblem.test(stderr) || authProblem.test(output)) {
         logger.warn("AI auth problem detected in output")
-        return (
-          "⚠️ Couldn't reach the AI model — it looks like this model needs credentials.\n\n" +
-          "• The free default model may require a free opencode account, or\n" +
-          "• The selected provider needs an API key.\n\n" +
-          "Open **Settings → AI Provider** (Ctrl+,) to add your API key or switch models."
-        )
+        return {
+          response:
+            "⚠️ Couldn't reach the AI model — it looks like this model needs credentials.\n\n" +
+            "• The free default model may require a free opencode account, or\n" +
+            "• The selected provider needs an API key.\n\n" +
+            "Open **Settings → AI Provider** (Ctrl+,) to add your API key or switch models.",
+          changedFiles: [],
+        }
       }
 
-      const parsed = parseCliOutput(output, stderr)
+      // Detect changed files via filesystem snapshot (reliable) + output markers.
+      const after = snapshotDir(projectDir)
+      const changedFiles = Array.from(
+        new Set([
+          ...diffSnapshots(before, after),
+          ...extractChangedFileNames(output, stderr),
+        ])
+      )
+      logger.file(`AI changed ${changedFiles.length} file(s): ${changedFiles.join(", ") || "none"}`)
+
+      let parsed = parseCliOutput(output, stderr)
+      const summary = summarizeChangedFiles(changedFiles)
+      if (summary) parsed = `${summary}\n\n${parsed}`
       logger.ai(`Parsed response: ${parsed.length}B`)
-      return parsed
+      return { response: parsed, changedFiles }
     } catch (err: any) {
       logger.error(`CLI failed: ${err.message}`)
-      return `Error: ${err.message || "Failed to run opencode CLI."}`
+      return { response: `Error: ${err.message || "Failed to run opencode CLI."}`, changedFiles: [] }
     }
 }
 

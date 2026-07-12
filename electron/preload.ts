@@ -40,8 +40,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("session:save", projectPath, messages),
   sessionDelete: (projectPath: string) => ipcRenderer.invoke("session:delete", projectPath),
   sessionList: () => ipcRenderer.invoke("session:list"),
-  onFilesChanged: (callback: () => void) => {
-    const handler = () => callback()
+  onFilesChanged: (callback: (changedFiles?: string[]) => void) => {
+    const handler = (_: unknown, changedFiles?: string[]) => callback(changedFiles)
     ipcRenderer.on("project:files-changed", handler)
     return () => {
       ipcRenderer.removeListener("project:files-changed", handler)

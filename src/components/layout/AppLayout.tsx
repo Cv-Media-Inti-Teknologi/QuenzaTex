@@ -231,15 +231,27 @@ export function AppLayout() {
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyDown])
 
-  // Refresh file tree when AI creates/changes files
+  // Refresh file tree when AI creates/changes files, and auto-open the newest one
   useEffect(() => {
     if (typeof window.electronAPI.onFilesChanged !== "function") return
-    const unsub = window.electronAPI.onFilesChanged(() => {
-      logger.file("AI changed files, refreshing tree")
+    const unsub = window.electronAPI.onFilesChanged((changedFiles) => {
+      logger.file(`AI changed files, refreshing tree${changedFiles?.length ? `: ${changedFiles.join(", ")}` : ""}`)
       refreshFiles()
+
+      const root = project?.rootPath
+      if (!root || !changedFiles || changedFiles.length === 0) return
+      // Prefer a .tex file; otherwise open the first changed file.
+      const target = changedFiles.find((f) => f.toLowerCase().endsWith(".tex")) || changedFiles[0]
+      if (target) {
+        const sep = root.includes("\\") ? "\\" : "/"
+        const fullPath = `${root}${sep}${target}`
+        logger.file(`Auto-opening AI-created file: ${target}`)
+        // small delay so the file is fully flushed to disk before we read it
+        setTimeout(() => handleSelectFile(fullPath), 150)
+      }
     })
     return () => { if (typeof unsub === "function") unsub() }
-  }, [refreshFiles])
+  }, [refreshFiles, project?.rootPath, handleSelectFile])
 
   // Handle native menu actions (File/Edit/View/Help)
   useEffect(() => {

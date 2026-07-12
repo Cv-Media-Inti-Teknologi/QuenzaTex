@@ -34,7 +34,8 @@ const TIPS = [
   "The integrated PDF viewer supports zooming and scrolling just like a standalone app.",
   "You can use standard VS Code keyboard shortcuts for text editing inside QuenzaTex.",
   "Don't forget to include necessary LaTeX packages in your preamble before using custom commands.",
-  "Need a quick table? Ask the AI Assistant to generate the LaTeX table structure for you."
+  "Need a quick table? Ask the AI Assistant to generate the LaTeX table structure for you.",
+  "Running into an error? QuenzaTex keeps daily log files — open them via Help \u2192 Open Logs Folder, and attach the latest one when you use Help \u2192 Report a Bug so developers can trace the issue faster."
 ]
 
 interface Props {

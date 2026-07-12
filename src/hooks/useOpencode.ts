@@ -89,13 +89,14 @@ export function useOpencode() {
         finalText = buildPromptWithContext(text, contexts)
       }
 
-      const response = await window.electronAPI.opencodeSendWithContext(
+      const result = await window.electronAPI.opencodeSendWithContext(
         finalText,
         projectContextRef.current?.projectPath || "",
         projectContextRef.current?.fileList,
         history,
         projectContextRef.current?.model
       )
+      const response = result?.response ?? "No response"
 
       const assistantMsg: ChatMessage = {
         id: genId(),

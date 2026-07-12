@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { buildPrompt, parseCliOutput } from "./opencode"
+import {
+  buildPrompt,
+  parseCliOutput,
+  extractChangedFileNames,
+  summarizeChangedFiles,
+} from "./opencode"
 
 describe("buildPrompt", () => {
   it("returns the plain message when no options given", () => {
@@ -58,7 +63,7 @@ describe("parseCliOutput", () => {
 
   it("keeps Write tool traces wrapped in backticks", () => {
     const out = parseCliOutput("Write main.tex\nFile created successfully here", "")
-    expect(out).toContain("`Write main.tex`")
+    expect(out).toContain("Write main.tex")
   })
 
   it("drops Read/Edit/Bash tool traces", () => {
@@ -70,5 +75,55 @@ describe("parseCliOutput", () => {
   it("keeps normal response lines longer than 8 chars", () => {
     const out = parseCliOutput("This is a normal reply from the model", "")
     expect(out).toContain("This is a normal reply")
+  })
+})
+
+describe("extractChangedFileNames", () => {
+  it("detects a file from a Write tool trace", () => {
+    const names = extractChangedFileNames("Write mendoan.tex\nDone", "")
+    expect(names).toContain("mendoan.tex")
+  })
+
+  it("detects a file from 'Wrote file' phrasing", () => {
+    const names = extractChangedFileNames("Wrote file report.tex successfully", "")
+    expect(names).toContain("report.tex")
+  })
+
+  it("detects an apply_patch add-file marker", () => {
+    const names = extractChangedFileNames("*** Add File: chapters/intro.tex", "")
+    expect(names).toContain("intro.tex")
+  })
+
+  it("detects 'X.tex created' narration (verbose models)", () => {
+    const names = extractChangedFileNames("mendoan.tex created with a minimal article", "")
+    expect(names).toContain("mendoan.tex")
+  })
+
+  it("returns empty when no files are mentioned", () => {
+    expect(extractChangedFileNames("just some chatter", "")).toEqual([])
+  })
+
+  it("does not duplicate the same file", () => {
+    const names = extractChangedFileNames("Write a.tex\na.tex created", "")
+    expect(names.filter((n) => n === "a.tex")).toHaveLength(1)
+  })
+})
+
+describe("summarizeChangedFiles", () => {
+  it("returns empty string when nothing changed", () => {
+    expect(summarizeChangedFiles([])).toBe("")
+  })
+
+  it("summarizes a single file", () => {
+    const out = summarizeChangedFiles(["a.tex"])
+    expect(out).toContain("Updated file:")
+    expect(out).toContain("a.tex")
+  })
+
+  it("summarizes multiple files", () => {
+    const out = summarizeChangedFiles(["a.tex", "b.tex"])
+    expect(out).toContain("Updated files:")
+    expect(out).toContain("a.tex")
+    expect(out).toContain("b.tex")
   })
 })

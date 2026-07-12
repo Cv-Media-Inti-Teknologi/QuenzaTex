@@ -263,7 +263,7 @@ function registerIpcHandlers() {
       logger.ai(`Send: "${msgPreview}" (history: ${historyCount}, prompt: ~${promptSize}B, model: ${model || "default"})`)
 
       const start = Date.now()
-      const response = await sendOpenCodeMessage(message, {
+      const result = await sendOpenCodeMessage(message, {
         projectPath,
         fileList,
         conversationHistory,
@@ -271,12 +271,14 @@ function registerIpcHandlers() {
       })
       const duration = Date.now() - start
 
-      const respPreview = response.length > 80 ? response.slice(0, 80) + "..." : response
+      const respPreview = result.response.length > 80 ? result.response.slice(0, 80) + "..." : result.response
       logger.ai(`Response (${duration}ms): "${respPreview}"`)
 
-      mainWindow?.webContents.send("project:files-changed")
-      logger.file("File tree refresh triggered (AI may have changed files)")
-      return response
+      // Tell the renderer which files changed so it can refresh the tree and
+      // auto-open the newest one in the editor.
+      mainWindow?.webContents.send("project:files-changed", result.changedFiles)
+      logger.file(`File tree refresh triggered (${result.changedFiles.length} changed)`)
+      return { response: result.response, changedFiles: result.changedFiles }
     }
   )
 
