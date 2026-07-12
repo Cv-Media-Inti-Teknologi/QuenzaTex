@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { parseMentions, buildPromptWithContext } from "../lib/mention-parser"
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
@@ -28,6 +28,7 @@ export function useOpencode() {
     sending: false,
   })
   const initialized = useRef(false)
+  const projectContextRef = useRef<{ projectPath: string; fileList?: string } | null>(null)
 
   useEffect(() => {
     if (initialized.current) return
@@ -42,6 +43,14 @@ export function useOpencode() {
       }
     }
     init()
+  }, [])
+
+  const setProjectContext = useCallback((ctx: { projectPath: string; fileList?: string } | null) => {
+    projectContextRef.current = ctx
+  }, [])
+
+  const restoreMessages = useCallback((messages: ChatMessage[]) => {
+    setState((s) => ({ ...s, messages }))
   }, [])
 
   const sendMessage = useCallback(async (text: string) => {
@@ -60,11 +69,11 @@ export function useOpencode() {
 
     try {
       const mentions = parseMentions(text)
-      let response: string
+      let finalText = text
+      const contexts: { path: string; content: string }[] = []
 
       if (mentions.length > 0) {
-        const contexts: { path: string; content: string }[] = []
-        const projectPath = await getProjectPath()
+        const projectPath = projectContextRef.current?.projectPath || ""
 
         for (const mention of mentions) {
           const filePath = mention.path || `${projectPath}/${mention.name}`
@@ -78,11 +87,14 @@ export function useOpencode() {
           }
         }
 
-        const fullPrompt = buildPromptWithContext(text, contexts)
-        response = await window.electronAPI.opencodeSend(fullPrompt)
-      } else {
-        response = await window.electronAPI.opencodeSend(text)
+        finalText = buildPromptWithContext(text, contexts)
       }
+
+      const response = await window.electronAPI.opencodeSendWithContext(
+        finalText,
+        projectContextRef.current?.projectPath || "",
+        projectContextRef.current?.fileList
+      )
 
       const assistantMsg: ChatMessage = {
         id: genId(),
@@ -122,10 +134,7 @@ export function useOpencode() {
     sending: state.sending,
     sendMessage,
     clearMessages,
+    setProjectContext,
+    restoreMessages,
   }
-}
-
-async function getProjectPath(): Promise<string> {
-  // In a real app, we'd get this from context
-  return ""
 }

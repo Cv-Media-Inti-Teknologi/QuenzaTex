@@ -8,6 +8,8 @@ import { SetupWizard } from "../onboarding/SetupWizard"
 import { SettingsDialog } from "../settings/SettingsDialog"
 import { useFileExplorer } from "../../hooks/useFileExplorer"
 import { useOpencode } from "../../hooks/useOpencode"
+import { useSession } from "../../hooks/useSession"
+import type { ChatMessage } from "../../hooks/useOpencode"
 
 export function AppLayout() {
   const [explorerWidth, setExplorerWidth] = useState(250)
@@ -20,6 +22,7 @@ export function AppLayout() {
   const [showSetup, setShowSetup] = useState(() => !localStorage.getItem("quenzatex-setup-done"))
   const [showSettings, setShowSettings] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const prevProjectPathRef = useRef<string | null>(null)
 
   const {
     project,
@@ -35,7 +38,52 @@ export function AppLayout() {
     sending: chatSending,
     sendMessage: sendChatMessage,
     clearMessages,
+    setProjectContext,
+    restoreMessages,
   } = useOpencode()
+
+  const session = useSession()
+
+  // When project changes, load session + set AI context
+  useEffect(() => {
+    const path = project?.rootPath || null
+    if (!path || path === prevProjectPathRef.current) return
+
+    prevProjectPathRef.current = path
+
+    const setup = async () => {
+      const stored = await session.load(path)
+      if (stored.length > 0) {
+        const restored: ChatMessage[] = stored.map((m) => ({
+          ...m,
+          timestamp: new Date(m.timestamp),
+        }))
+        restoreMessages(restored)
+      }
+
+      const fileList = project?.files
+        ?.filter((f) => !f.isDirectory)
+        .map((f) => `- ${f.name}`)
+        .join("\n")
+
+      setProjectContext({ projectPath: path, fileList })
+    }
+
+    setup()
+  }, [project?.rootPath, project?.files])
+
+  // Auto-save chat when messages change
+  useEffect(() => {
+    const path = prevProjectPathRef.current
+    if (!path || chatMessages.length === 0) return
+    const serialized = chatMessages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp.toISOString(),
+    }))
+    session.save(path, serialized)
+  }, [chatMessages])
 
   const handleSelectFile = useCallback(async (path: string) => {
     selectFile(path)
@@ -89,11 +137,6 @@ export function AppLayout() {
       handleCompile()
     }
   }, [openProject, handleCompile, getSelectedPath])
-
-  const handleSetupComplete = useCallback(() => {
-    localStorage.setItem("quenzatex-setup-done", "true")
-    setShowSetup(false)
-  }, [])
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown)

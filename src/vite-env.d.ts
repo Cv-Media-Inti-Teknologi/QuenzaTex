@@ -24,6 +24,13 @@ interface OpenCodeStatus {
   port: number
 }
 
+interface ChatMessageData {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  timestamp: string
+}
+
 interface ElectronAPI {
   openProject: () => Promise<ProjectInfo | null>
   readFile: (path: string) => Promise<string | null>
@@ -37,7 +44,7 @@ interface ElectronAPI {
   opencodeStart: () => Promise<OpenCodeStatus>
   opencodeStop: () => Promise<boolean>
   opencodeSend: (message: string) => Promise<string>
-  opencodeSendWithContext: (message: string, paths: string[]) => Promise<string>
+  opencodeSendWithContext: (message: string, projectPath: string, fileList?: string) => Promise<string>
   opencodeStatus: () => Promise<OpenCodeStatus>
   opencodeCheckInstalled: () => Promise<boolean>
   checkEnvironment: () => Promise<{
@@ -46,6 +53,10 @@ interface ElectronAPI {
     texlive: { found: boolean; version: string; latexmk: boolean }
   }>
   installOpencode: () => Promise<boolean>
+  sessionLoad: (projectPath: string) => Promise<ChatMessageData[]>
+  sessionSave: (projectPath: string, messages: ChatMessageData[]) => Promise<boolean>
+  sessionDelete: (projectPath: string) => Promise<boolean>
+  sessionList: () => Promise<{ path: string; lastOpened: string }[]>
 }
 
 interface Window {

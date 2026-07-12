@@ -15,10 +15,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   opencodeStart: () => ipcRenderer.invoke("opencode:start"),
   opencodeStop: () => ipcRenderer.invoke("opencode:stop"),
   opencodeSend: (message: string) => ipcRenderer.invoke("opencode:send", message),
-  opencodeSendWithContext: (message: string, paths: string[]) =>
-    ipcRenderer.invoke("opencode:send-with-context", message, paths),
+  opencodeSendWithContext: (message: string, projectPath: string, fileList?: string) =>
+    ipcRenderer.invoke("opencode:send-with-context", message, projectPath, fileList),
   opencodeStatus: () => ipcRenderer.invoke("opencode:status"),
   opencodeCheckInstalled: () => ipcRenderer.invoke("opencode:check-installed"),
   checkEnvironment: () => ipcRenderer.invoke("env:check"),
   installOpencode: () => ipcRenderer.invoke("env:install-opencode"),
+  sessionLoad: (projectPath: string) => ipcRenderer.invoke("session:load", projectPath),
+  sessionSave: (projectPath: string, messages: any[]) =>
+    ipcRenderer.invoke("session:save", projectPath, messages),
+  sessionDelete: (projectPath: string) => ipcRenderer.invoke("session:delete", projectPath),
+  sessionList: () => ipcRenderer.invoke("session:list"),
 })

@@ -8,8 +8,16 @@ import {
   getOpenCodeStatus,
   sendOpenCodeMessage,
   isOpenCodeInstalled,
+  setProjectPath,
 } from "./services/opencode"
 import { checkEnvironment, installOpencode } from "./services/env-setup"
+import {
+  loadSession,
+  saveSession,
+  deleteSession,
+  listSessions,
+  type ChatMessageData,
+} from "./services/session"
 
 let mainWindow: BrowserWindow | null = null
 let currentProjectDir: string | null = null
@@ -73,6 +81,7 @@ function registerIpcHandlers() {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     currentProjectDir = result.filePaths[0]
+    setProjectPath(currentProjectDir)
     return { path: currentProjectDir, files: getAllFiles(currentProjectDir) }
   })
 
@@ -142,8 +151,8 @@ function registerIpcHandlers() {
     return sendOpenCodeMessage(message)
   })
 
-  ipcMain.handle("opencode:send-with-context", async (_, message: string, paths: string[]) => {
-    return sendOpenCodeMessage(message, paths)
+  ipcMain.handle("opencode:send-with-context", async (_, message: string, projectPath: string, fileList?: string) => {
+    return sendOpenCodeMessage(message, { projectPath, fileList })
   })
 
   ipcMain.handle("opencode:check-installed", async () => {
@@ -156,6 +165,24 @@ function registerIpcHandlers() {
 
   ipcMain.handle("env:install-opencode", async () => {
     return installOpencode()
+  })
+
+  ipcMain.handle("session:load", async (_, projectPath: string) => {
+    return loadSession(projectPath)
+  })
+
+  ipcMain.handle("session:save", async (_, projectPath: string, messages: ChatMessageData[]) => {
+    saveSession(projectPath, messages)
+    return true
+  })
+
+  ipcMain.handle("session:delete", async (_, projectPath: string) => {
+    deleteSession(projectPath)
+    return true
+  })
+
+  ipcMain.handle("session:list", async () => {
+    return listSessions()
   })
 }
 

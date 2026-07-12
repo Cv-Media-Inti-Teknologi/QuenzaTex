@@ -1,6 +1,7 @@
 import { spawn, execSync } from "child_process"
 import { createServer } from "net"
 import http from "http"
+import path from "path"
 
 interface OpenCodeStatus {
   running: boolean
@@ -11,6 +12,7 @@ interface OpenCodeStatus {
 let serverProcess: ReturnType<typeof spawn> | null = null
 let currentStatus: OpenCodeStatus = { running: false, mode: "off", port: 0 }
 let activeSessionId: string | null = null
+let currentProjectPath: string | null = null
 
 function checkOpencodeInstalled(): boolean {
   try {
@@ -37,14 +39,33 @@ async function startHttpServer(): Promise<boolean> {
   const port = await findFreePort()
 
   return new Promise((resolve) => {
-    const proc = spawn("opencode", ["serve", "--port", String(port), "--hostname", "127.0.0.1"], {
-      stdio: ["ignore", "pipe", "pipe"],
-      shell: true,
-    })
+    const proc = spawn(
+      "opencode",
+      [
+        "serve",
+        "--port", String(port),
+        "--hostname", "127.0.0.1",
+        "--config", JSON.stringify({
+          permissions: {
+            read: "allow",
+            write: "allow",
+            edit: "allow",
+            apply_patch: "allow",
+            bash: "allow",
+            grep: "allow",
+            glob: "allow",
+          },
+        }),
+      ],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: true,
+      }
+    )
 
     let started = false
 
-    proc.stdout?.on("data", (data: Buffer) => {
+    const checkStarted = (data: Buffer) => {
       const text = data.toString()
       if (!started && (text.includes("listening") || text.includes("Server"))) {
         started = true
@@ -52,20 +73,13 @@ async function startHttpServer(): Promise<boolean> {
         currentStatus = { running: true, mode: "http", port }
         resolve(true)
       }
-    })
+    }
 
-    proc.stderr?.on("data", (data: Buffer) => {
-      const text = data.toString()
-      if (!started && (text.includes("listening") || text.includes("Server"))) {
-        started = true
-        serverProcess = proc
-        currentStatus = { running: true, mode: "http", port }
-        resolve(true)
-      }
-    })
+    proc.stdout?.on("data", checkStarted)
+    proc.stderr?.on("data", checkStarted)
 
     proc.on("error", () => {
-      resolve(false)
+      if (!started) resolve(false)
     })
 
     proc.on("exit", () => {
@@ -98,7 +112,7 @@ function httpRequest(
       headers: {
         "Content-Type": "application/json",
       },
-      timeout: 30000,
+      timeout: 60000,
     }
 
     const req = http.request(options, (res) => {
@@ -124,7 +138,18 @@ function httpRequest(
   })
 }
 
-async function sendViaHttp(message: string, contentPaths?: string[]): Promise<string> {
+function buildProjectContext(projectPath: string, fileList?: string): string {
+  let context = `Project: ${projectPath}\n`
+  if (fileList) {
+    context += `Files:\n${fileList}`
+  }
+  return context
+}
+
+async function sendViaHttp(
+  message: string,
+  projectContext?: { projectPath: string; fileList?: string }
+): Promise<string> {
   if (!currentStatus.running || currentStatus.mode !== "http") {
     return "OpenCode server is not running."
   }
@@ -144,13 +169,20 @@ async function sendViaHttp(message: string, contentPaths?: string[]): Promise<st
       activeSessionId = session.id
     }
 
-    const parts: any[] = [{ type: "text", text: message }]
+    const parts: any[] = []
 
-    if (contentPaths && contentPaths.length > 0) {
-      for (const cp of contentPaths) {
-        parts.push({ type: "text", text: `\n[Context from ${cp}]:` })
-      }
+    if (projectContext) {
+      const systemMsg = buildProjectContext(
+        projectContext.projectPath,
+        projectContext.fileList
+      )
+      parts.push({
+        type: "text",
+        text: `[System Context - this is the active project]\n${systemMsg}\n\n---\n\n`,
+      })
     }
+
+    parts.push({ type: "text", text: message })
 
     const response = await httpRequest(
       "POST",
@@ -169,26 +201,41 @@ async function sendViaHttp(message: string, contentPaths?: string[]): Promise<st
   }
 }
 
-async function sendViaCli(message: string, contentPaths?: string[]): Promise<string> {
+async function sendViaCli(
+  message: string,
+  projectContext?: { projectPath: string; fileList?: string }
+): Promise<string> {
   if (!checkOpencodeInstalled()) {
     return "OpenCode is not installed."
   }
 
-  let prompt = message
-  if (contentPaths && contentPaths.length > 0) {
-    prompt = `[Context files: ${contentPaths.join(", ")}]\n\n${message}`
+  let prompt = ""
+  if (projectContext) {
+    prompt += `Project directory: ${projectContext.projectPath}\n`
+    if (projectContext.fileList) {
+      prompt += `Project files:\n${projectContext.fileList}\n`
+    }
+    prompt += "\n---\n\n"
   }
+  prompt += message
 
   const escaped = prompt.replace(/"/g, '\\"')
 
   try {
     const output = execSync(
       `opencode run "${escaped}"`,
-      { timeout: 60000, encoding: "utf-8" }
+      { timeout: 120000, encoding: "utf-8" }
     )
     return output.trim()
   } catch (err: any) {
     return err.stdout?.trim() || err.message || "Failed to run opencode CLI."
+  }
+}
+
+export function setProjectPath(projectPath: string | null) {
+  currentProjectPath = projectPath
+  if (currentStatus.mode === "http") {
+    activeSessionId = null
   }
 }
 
@@ -220,13 +267,13 @@ export function getOpenCodeStatus(): OpenCodeStatus {
 
 export async function sendOpenCodeMessage(
   message: string,
-  contentPaths?: string[]
+  projectContext?: { projectPath: string; fileList?: string }
 ): Promise<string> {
   if (currentStatus.mode === "http") {
-    return sendViaHttp(message, contentPaths)
+    return sendViaHttp(message, projectContext)
   }
   if (currentStatus.mode === "cli") {
-    return sendViaCli(message, contentPaths)
+    return sendViaCli(message, projectContext)
   }
   return "OpenCode is not configured. Please set up in Settings."
 }

@@ -53,10 +53,10 @@ function FileTreeNode({
     <div>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-1.5 px-2 py-1 text-sm rounded
-          hover:bg-[var(--muted)] text-left
+        className={`w-full flex items-center gap-2 pr-3 py-1.5 text-sm rounded-lg
+          hover:bg-gray-100 text-left transition-colors
           ${isSelected ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"}`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        style={{ paddingLeft: `${depth * 16 + 12}px` }}
       >
         {node.isDirectory ? (
           <>
@@ -104,28 +104,28 @@ export function ExplorerPanel({ width, onClose, project, onOpenProject, onSelect
       className="h-full flex flex-col bg-white border-r border-[var(--border)]"
       style={{ width, minWidth: 180, maxWidth: 500 }}
     >
-      <div className="flex items-center justify-between px-3 h-10 border-b border-[var(--border)] shrink-0">
+      <div className="flex items-center justify-between px-4 h-11 border-b border-[var(--border)] shrink-0">
         <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-          <FolderTree size={15} />
+          <FolderTree size={16} />
           <span>Explorer</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={onOpenSettings}
-            className="p-1 rounded hover:bg-[var(--muted)] text-gray-400 hover:text-gray-600"
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
             title="Settings (Ctrl+,)"
           >
-            <Settings2 size={14} />
+            <Settings2 size={15} />
           </button>
           <button
             onClick={onClose}
-            className="p-1 rounded hover:bg-[var(--muted)] text-gray-400 hover:text-gray-600"
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <PanelLeftClose size={15} />
+            <PanelLeftClose size={16} />
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-2">
         {!project ? (
           <div className="p-3 text-center">
             <p className="text-sm text-gray-400 mb-3">No project opened</p>
