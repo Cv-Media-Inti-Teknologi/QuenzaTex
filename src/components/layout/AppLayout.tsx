@@ -9,6 +9,7 @@ import { SettingsDialog } from "../settings/SettingsDialog"
 import { useFileExplorer } from "../../hooks/useFileExplorer"
 import { useOpencode } from "../../hooks/useOpencode"
 import { useSession } from "../../hooks/useSession"
+import { useSettings } from "../../store/SettingsContext"
 import type { ChatMessage } from "../../hooks/useOpencode"
 
 export function AppLayout() {
@@ -34,7 +35,6 @@ export function AppLayout() {
   } = useFileExplorer()
 
   const {
-    status: opencodeStatus,
     messages: chatMessages,
     sending: chatSending,
     sendMessage: sendChatMessage,
@@ -44,6 +44,7 @@ export function AppLayout() {
   } = useOpencode()
 
   const session = useSession()
+  const { settings } = useSettings()
 
   // When project changes, load session + set AI context
   useEffect(() => {
@@ -67,7 +68,7 @@ export function AppLayout() {
         .map((f) => `- ${f.name}`)
         .join("\n")
 
-      setProjectContext({ projectPath: path, fileList })
+      setProjectContext({ projectPath: path, fileList, model: settings.ai.model })
     }
 
     setup()
@@ -153,6 +154,11 @@ export function AppLayout() {
     return () => { if (typeof unsub === "function") unsub() }
   }, [refreshFiles])
 
+  const handleSetupComplete = useCallback(() => {
+    localStorage.setItem("quenzatex-setup-done", "true")
+    setShowSetup(false)
+  }, [])
+
   return (
     <div ref={containerRef} className="h-screen w-screen flex bg-white overflow-hidden select-none">
       {!explorerHidden && (
@@ -212,7 +218,6 @@ export function AppLayout() {
             sending={chatSending}
             onSend={sendChatMessage}
             onClear={clearMessages}
-            status={opencodeStatus}
           />
         </>
       )}

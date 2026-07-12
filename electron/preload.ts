@@ -12,13 +12,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onLatexResult: (callback: (result: any) => void) => {
     ipcRenderer.on("latex:compile-result", (_, result) => callback(result))
   },
-  opencodeStart: () => ipcRenderer.invoke("opencode:start"),
-  opencodeStop: () => ipcRenderer.invoke("opencode:stop"),
-  opencodeSend: (message: string) => ipcRenderer.invoke("opencode:send", message),
-  opencodeSendWithContext: (message: string, projectPath: string, fileList?: string) =>
-    ipcRenderer.invoke("opencode:send-with-context", message, projectPath, fileList),
   opencodeStatus: () => ipcRenderer.invoke("opencode:status"),
   opencodeCheckInstalled: () => ipcRenderer.invoke("opencode:check-installed"),
+  opencodeSendWithContext: (
+    message: string,
+    projectPath: string,
+    fileList?: string,
+    history?: { role: string; content: string }[],
+    model?: string
+  ) => ipcRenderer.invoke("opencode:send-with-context", message, projectPath, fileList, history, model),
   checkEnvironment: () => ipcRenderer.invoke("env:check"),
   installOpencode: () => ipcRenderer.invoke("env:install-opencode"),
   sessionLoad: (projectPath: string) => ipcRenderer.invoke("session:load", projectPath),
@@ -26,13 +28,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("session:save", projectPath, messages),
   sessionDelete: (projectPath: string) => ipcRenderer.invoke("session:delete", projectPath),
   sessionList: () => ipcRenderer.invoke("session:list"),
-  onOpencodeStatusChanged: (callback: (status: OpenCodeStatus) => void) => {
-    const handler = (_: any, status: OpenCodeStatus) => callback(status)
-    ipcRenderer.on("opencode:status-changed", handler)
-    return () => {
-      ipcRenderer.removeListener("opencode:status-changed", handler)
-    }
-  },
   onFilesChanged: (callback: () => void) => {
     const handler = () => callback()
     ipcRenderer.on("project:files-changed", handler)

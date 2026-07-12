@@ -1,10 +1,7 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
 
 export interface AiProviderConfig {
-  provider: string
   model: string
-  apiUrl: string
-  port: number
 }
 
 interface Settings {
@@ -30,10 +27,7 @@ interface SettingsContextValue {
 
 const defaultSettings: Settings = {
   ai: {
-    provider: "opencode",
     model: "default",
-    apiUrl: "http://localhost",
-    port: 4097,
   },
   editor: {
     fontSize: 14,

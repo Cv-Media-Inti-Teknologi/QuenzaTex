@@ -1,21 +1,11 @@
-import { spawn, execSync } from "child_process"
-import { createServer } from "net"
-import http from "http"
-import path from "path"
-import fs from "fs"
-import os from "os"
+import { execSync, spawnSync } from "child_process"
 
 interface OpenCodeStatus {
   running: boolean
-  mode: "http" | "cli" | "off"
-  port: number
+  mode: "cli" | "off"
 }
 
-let serverProcess: ReturnType<typeof spawn> | null = null
-let currentStatus: OpenCodeStatus = { running: false, mode: "off", port: 0 }
-let activeSessionId: string | null = null
-let currentProjectPath: string | null = null
-let tempConfigDirs: string[] = []
+let currentStatus: OpenCodeStatus = { running: false, mode: "off" }
 
 function checkOpencodeInstalled(): boolean {
   try {
@@ -26,343 +16,133 @@ function checkOpencodeInstalled(): boolean {
   }
 }
 
-async function findFreePort(): Promise<number> {
-  return new Promise((resolve) => {
-    const server = createServer()
-    server.listen(0, "127.0.0.1", () => {
-      const port = (server.address() as any).port
-      server.close(() => resolve(port))
-    })
-  })
-}
-
-function writeTempConfig(): string | null {
-  const config = {
-    permissions: {
-      read: "allow",
-      write: "allow",
-      edit: "allow",
-      apply_patch: "allow",
-      bash: "allow",
-      grep: "allow",
-      glob: "allow",
-    },
-  }
-  try {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "quenzatex-"))
-    tempConfigDirs.push(tmpDir)
-    const configPath = path.join(tmpDir, "opencode.json")
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf8")
-    return configPath
-  } catch {
-    return null
-  }
-}
-
-function cleanTempConfigs() {
-  for (const dir of tempConfigDirs) {
-    try {
-      const configPath = path.join(dir, "opencode.json")
-      if (fs.existsSync(configPath)) fs.unlinkSync(configPath)
-      if (fs.existsSync(dir)) fs.rmdirSync(dir)
-    } catch {}
-  }
-  tempConfigDirs = []
-}
-
-const MAX_START_RETRIES = 3
-
-async function startHttpServer(projectDir?: string, retries = MAX_START_RETRIES): Promise<boolean> {
-  if (!checkOpencodeInstalled()) return false
-
-  const port = await findFreePort()
-  const configPath = writeTempConfig()
-  if (!configPath) return false
-
-  return new Promise((resolve) => {
-    const cwd = projectDir || process.cwd()
-    const cmd = process.platform === "win32" ? "opencode.cmd" : "opencode"
-
-    const args = [
-      "serve",
-      "--port", String(port),
-      "--hostname", "127.0.0.1",
-    ]
-
-    console.log(`Starting opencode serve on port ${port}, cwd: ${cwd}, config: ${configPath}`)
-
-    const proc = spawn(cmd, args, {
-      cwd,
-      shell: process.platform === "win32",
-      stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        OPENCODE_CONFIG: configPath,
-      },
-    })
-
-    let started = false
-    let errorData = ""
-
-    const checkStarted = (data: Buffer) => {
-      const text = data.toString()
-      errorData += text
-      if (!started && (text.includes("listening") || text.includes("Server") || text.includes("started"))) {
-        started = true
-        serverProcess = proc
-        currentStatus = { running: true, mode: "http", port }
-        console.log(`Opencode server is listening on http://127.0.0.1:${port}`)
-        resolve(true)
-      }
-    }
-
-    proc.stdout?.on("data", checkStarted)
-    proc.stderr?.on("data", checkStarted)
-
-    proc.on("error", (err) => {
-      console.error("opencode serve spawn error:", err.message)
-      if (!started) resolve(false)
-    })
-
-    proc.on("exit", (code) => {
-      if (!started) {
-        console.error(`opencode serve exited (code ${code}) on port ${port}. stderr:`, errorData.slice(0, 500))
-
-        if (retries > 0) {
-          console.log(`Retrying opencode serve... (${retries} attempts left)`)
-          cleanTempConfigs()
-          startHttpServer(projectDir, retries - 1).then(resolve)
-        } else {
-          resolve(false)
-        }
-      }
-      serverProcess = null
-      currentStatus = { running: false, mode: "off", port: 0 }
-    })
-
-    setTimeout(() => {
-      if (!started) {
-        console.error(`opencode serve timeout on port ${port}. stderr:`, errorData.slice(0, 500))
-        proc.kill()
-        if (retries > 0) {
-          console.log(`Retrying opencode serve with new port... (${retries} attempts left)`)
-          cleanTempConfigs()
-          startHttpServer(projectDir, retries - 1).then(resolve)
-        } else {
-          resolve(false)
-        }
-      }
-    }, 15000)
-  })
-}
-
-function httpRequest(
-  method: string,
-  url: string,
-  body?: any
-): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url)
-    const options: http.RequestOptions = {
-      hostname: urlObj.hostname,
-      port: parseInt(urlObj.port, 10),
-      path: urlObj.pathname + urlObj.search,
-      method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      timeout: 60000,
-    }
-
-    const req = http.request(options, (res) => {
-      let data = ""
-      res.on("data", (chunk) => (data += chunk))
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(data))
-        } catch {
-          resolve(data)
-        }
-      })
-    })
-
-    req.on("error", reject)
-    req.on("timeout", () => {
-      req.destroy()
-      reject(new Error("Request timeout"))
-    })
-
-    if (body) req.write(JSON.stringify(body))
-    req.end()
-  })
-}
-
-function buildProjectContext(projectPath: string, fileList?: string): string {
-  let ctx = `You are working inside this project directory: ${projectPath}\n`
-  ctx += `ALL file operations (create, read, edit, delete) MUST use absolute paths under this directory.\n`
-  ctx += `When the user asks you to create a file, always create it inside this directory.\n`
-  if (fileList) {
-    ctx += `\nExisting project files:\n${fileList}\n`
-  }
-  return ctx
-}
-
-async function sendViaHttp(
-  message: string,
-  projectContext?: { projectPath: string; fileList?: string }
-): Promise<string> {
-  if (!currentStatus.running || currentStatus.mode !== "http") {
-    return "OpenCode server is not running."
-  }
-
-  const baseUrl = `http://127.0.0.1:${currentStatus.port}`
-
-  try {
-    const health = await httpRequest("GET", `${baseUrl}/global/health`)
-    if (!health?.healthy) return "OpenCode server is not healthy."
-  } catch (err) {
-    return `Cannot connect to OpenCode server: ${err}`
-  }
-
-  try {
-    if (!activeSessionId) {
-      const session = await httpRequest("POST", `${baseUrl}/session`, {})
-      activeSessionId = session.id
-      console.log(`Created opencode session: ${activeSessionId}`)
-    }
-
-    const parts: any[] = []
-
-    if (projectContext) {
-      const systemMsg = buildProjectContext(
-        projectContext.projectPath,
-        projectContext.fileList
-      )
-      parts.push({
-        type: "text",
-        text: `[SYSTEM CONTEXT]\n${systemMsg}\n---\n\n`,
-      })
-    }
-
-    parts.push({ type: "text", text: message })
-
-    console.log(`Sending message to opencode session ${activeSessionId}...`)
-    const response = await httpRequest(
-      "POST",
-      `${baseUrl}/session/${activeSessionId}/message`,
-      { parts }
-    )
-
-    const textParts = (response.parts || [])
-      .filter((p: any) => p.type === "text")
-      .map((p: any) => p.text)
-      .join("\n")
-
-    return textParts || "No response from AI."
-  } catch (err: any) {
-    return `Error communicating with OpenCode: ${err.message}`
-  }
-}
-
-async function sendViaCli(
-  message: string,
-  projectContext?: { projectPath: string; fileList?: string }
-): Promise<string> {
-  if (!checkOpencodeInstalled()) {
-    return "OpenCode is not installed."
-  }
-
-  let prompt = ""
-  if (projectContext) {
-    prompt += `You are working inside this project directory: ${projectContext.projectPath}\n`
-    prompt += `ALL file operations MUST use absolute paths under this directory.\n`
-    if (projectContext.fileList) {
-      prompt += `\nExisting project files:\n${projectContext.fileList}\n`
-    }
-    prompt += "\n---\n\n"
-  }
-  prompt += message
-
-  try {
-    const output = execSync(
-      `"${getOpenCodeCmd()}" run "${prompt.replace(/"/g, '\\"')}"`,
-      { cwd: projectContext?.projectPath || process.cwd(), timeout: 120000, encoding: "utf-8" }
-    )
-    return output.trim()
-  } catch (err: any) {
-    return err.stdout?.trim() || err.message || "Failed to run opencode CLI."
-  }
-}
-
 function getOpenCodeCmd(): string {
   return process.platform === "win32" ? "opencode.cmd" : "opencode"
 }
 
-export async function setProjectPath(projectPath: string | null) {
-  const changed = projectPath !== currentProjectPath
-  currentProjectPath = projectPath
-  activeSessionId = null
-
-  if (changed && projectPath) {
-    if (currentStatus.mode === "http") {
-      console.log(`Project changed to ${projectPath}, restarting opencode server...`)
-      stopOpenCode()
-      const ok = await startHttpServer(projectPath)
-      console.log(`Opencode server restart: ${ok ? "OK" : "FAILED"}, mode: ${currentStatus.mode}`)
-    } else {
-      console.log(`Project changed to ${projectPath} (CLI mode)`)
-    }
-  }
-}
-
-export async function startOpenCode(projectDir?: string): Promise<OpenCodeStatus> {
-  if (projectDir) currentProjectPath = projectDir
-
-  console.log("Starting opencode HTTP server...")
-  const httpOk = await startHttpServer(currentProjectPath || undefined)
-
-  if (httpOk) {
-    console.log(`Opencode HTTP server running on port ${currentStatus.port}`)
-    return currentStatus
-  }
-
-  console.log("Opencode HTTP server failed, falling back to CLI mode")
+export async function startOpenCode(): Promise<OpenCodeStatus> {
   if (checkOpencodeInstalled()) {
-    currentStatus = { running: true, mode: "cli", port: 0 }
+    currentStatus = { running: true, mode: "cli" }
   } else {
-    currentStatus = { running: false, mode: "off", port: 0 }
+    currentStatus = { running: false, mode: "off" }
   }
-
   return currentStatus
 }
 
 export function stopOpenCode() {
-  if (serverProcess) {
-    serverProcess.kill()
-    serverProcess = null
-  }
-  currentStatus = { running: false, mode: "off", port: 0 }
-  activeSessionId = null
-  cleanTempConfigs()
+  currentStatus = { running: false, mode: "off" }
 }
 
 export function getOpenCodeStatus(): OpenCodeStatus {
   return currentStatus
 }
 
-export async function sendOpenCodeMessage(
-  message: string,
-  projectContext?: { projectPath: string; fileList?: string }
-): Promise<string> {
-  if (currentStatus.mode === "http") {
-    return sendViaHttp(message, projectContext)
-  }
-  if (currentStatus.mode === "cli") {
-    return sendViaCli(message, projectContext)
-  }
-  return "OpenCode is not configured. Please set up in Settings."
-}
-
 export function isOpenCodeInstalled(): boolean {
   return checkOpencodeInstalled()
+}
+
+function buildPrompt(
+  message: string,
+  options?: {
+    projectPath?: string
+    fileList?: string
+    conversationHistory?: { role: string; content: string }[]
+  }
+): string {
+  let prompt = ""
+
+  if (options?.projectPath) {
+    prompt += `You are working inside this project directory: ${options.projectPath}\n`
+    prompt += `ALL file operations (create, read, edit, delete) MUST use absolute paths under this directory.\n`
+    if (options.fileList) {
+      prompt += `\nExisting project files:\n${options.fileList}\n`
+    }
+    prompt += "\n---\n\n"
+  }
+
+  if (options?.conversationHistory && options.conversationHistory.length > 0) {
+    prompt += "[Previous conversation]\n"
+    for (const msg of options.conversationHistory) {
+      const role = msg.role === "user" ? "User" : "You"
+      prompt += `${role}: ${msg.content}\n\n`
+    }
+    prompt += "---\n\n"
+  }
+
+  prompt += `User: ${message}`
+
+  return prompt
+}
+
+function parseCliOutput(output: string, stderr: string): string {
+  const combined = output + "\n" + stderr
+  const lines = combined.split("\n")
+
+  const responseLines: string[] = []
+  let inResponse = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    if (!inResponse && (trimmed.startsWith("←") || trimmed.includes("Wrote file") || trimmed.includes("Done."))) {
+      inResponse = true
+    }
+
+    if (inResponse) {
+      const clean = trimmed.replace(/^[\s←→]*\s*/, "")
+      if (clean) responseLines.push(clean)
+    }
+  }
+
+  if (responseLines.length > 0) return responseLines.join("\n")
+
+  const noAnsi = output.replace(/\x1b\[[0-9;]*m/g, "").trim()
+  const noPrefix = noAnsi.replace(/^.*?>\s*build\s*·\s*.*?\s*/, "").trim()
+  return noPrefix || "No response from AI."
+}
+
+export async function sendOpenCodeMessage(
+  message: string,
+  options?: {
+    projectPath?: string
+    fileList?: string
+    conversationHistory?: { role: string; content: string }[]
+    model?: string
+  }
+): Promise<string> {
+  if (!checkOpencodeInstalled()) {
+    return "OpenCode is not installed. Please set up in Settings."
+  }
+
+  const prompt = buildPrompt(message, options)
+  const cmd = getOpenCodeCmd()
+  const args = ["run", "--auto"]
+  if (options?.model && options.model !== "default") {
+    args.push("--model", options.model)
+  }
+  args.push(prompt)
+
+  try {
+    const result = spawnSync(cmd, args, {
+      cwd: options?.projectPath || process.cwd(),
+      timeout: 120000,
+      encoding: "utf-8" as const,
+      maxBuffer: 10 * 1024 * 1024,
+    })
+
+    const output = result.stdout || ""
+    const stderr = result.stderr || ""
+
+    if (result.error) {
+      throw result.error
+    }
+
+    return parseCliOutput(output, stderr)
+  } catch (err: any) {
+    return `Error: ${err.message || "Failed to run opencode CLI."}`
+  }
+}
+
+export function setProjectPath(_projectPath: string | null) {
+  // No-op: CLI mode uses CWD per-invocation, no server restart needed
 }

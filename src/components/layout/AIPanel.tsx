@@ -8,10 +8,9 @@ interface Props {
   sending: boolean
   onSend: (message: string) => void
   onClear: () => void
-  status: { running: boolean; mode: string }
 }
 
-export function AIPanel({ width, onClose, messages, sending, onSend, onClear, status }: Props) {
+export function AIPanel({ width, onClose, messages, sending, onSend, onClear }: Props) {
   return (
     <div
       className="h-full flex flex-col bg-white border-l border-[var(--border)]"
@@ -35,7 +34,6 @@ export function AIPanel({ width, onClose, messages, sending, onSend, onClear, st
         sending={sending}
         onSend={onSend}
         onClear={onClear}
-        status={status}
       />
     </div>
   )
