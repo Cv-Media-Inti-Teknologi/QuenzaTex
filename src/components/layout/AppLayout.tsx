@@ -146,10 +146,11 @@ export function AppLayout() {
 
   // Refresh file tree when AI creates/changes files
   useEffect(() => {
+    if (typeof window.electronAPI.onFilesChanged !== "function") return
     const unsub = window.electronAPI.onFilesChanged(() => {
       refreshFiles()
     })
-    return () => unsub()
+    return () => { if (typeof unsub === "function") unsub() }
   }, [refreshFiles])
 
   return (
