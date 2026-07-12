@@ -41,11 +41,11 @@ describe("session persistence", () => {
 
   it("maps the same project path to the same file (stable hashing)", () => {
     saveSession("C:/proj", MSG)
-    const keysAfterFirst = [...files.keys()].filter((k) => k.endsWith(".json") && !k.endsWith("index.json"))
+    const keysAfterFirst = Array.from(files.keys()).filter((k) => k.endsWith(".json") && !k.endsWith("index.json"))
     saveSession("C:/proj", [
       { id: "2", role: "assistant", content: "yo", timestamp: "2026-01-02T00:00:00Z" },
     ])
-    const keysAfterSecond = [...files.keys()].filter((k) => k.endsWith(".json") && !k.endsWith("index.json"))
+    const keysAfterSecond = Array.from(files.keys()).filter((k) => k.endsWith(".json") && !k.endsWith("index.json"))
     expect(keysAfterSecond).toEqual(keysAfterFirst) // same file, overwritten
   })
 

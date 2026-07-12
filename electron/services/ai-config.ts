@@ -138,6 +138,7 @@ export function saveApiKey(providerId: string, key: string): { ok: boolean; erro
     const auth = readAuthJson()
     auth[providerId] = { type: "api", key: trimmed }
     writeAuthJson(auth)
+    invalidateModelCache()
     logger.ai(`Saved API key for provider: ${providerId}`)
     return { ok: true }
   } catch (err: any) {
@@ -153,6 +154,7 @@ export function removeApiKey(providerId: string): { ok: boolean; error?: string 
     if (auth[providerId]) {
       delete auth[providerId]
       writeAuthJson(auth)
+      invalidateModelCache()
       logger.ai(`Removed API key for provider: ${providerId}`)
     }
     return { ok: true }
@@ -163,6 +165,11 @@ export function removeApiKey(providerId: string): { ok: boolean; error?: string 
 }
 
 let modelCache: ModelEntry[] | null = null
+
+function invalidateModelCache() {
+  modelCache = null
+  catalogCache.clear()
+}
 
 /** Global opencode config path: ~/.config/opencode/opencode.json */
 function getConfigPath(): string {
@@ -350,17 +357,35 @@ export function listModels(force = false): ModelEntry[] {
   }
 }
 
-/** Models for a given provider id — catalog first, then live opencode, then examples. */
+/**
+ * Models for a given provider id.
+ *
+ * IMPORTANT: the models.dev catalog lists more models than opencode actually
+ * supports at runtime (e.g. it shows `openai/gpt-5` while opencode only accepts
+ * `openai/gpt-5.5`). Using a catalog-only model causes a `Model not found`
+ * error when the user tries it. So we prefer the LIVE list from
+ * `opencode models <provider>` (what opencode really supports) whenever the
+ * provider is authenticated, and fall back to the catalog only so the user can
+ * still browse options before entering an API key.
+ */
 export function listModelsForProvider(providerId: string): ModelEntry[] {
-  // 1) Full models.dev catalog (works even before the provider is authenticated)
-  const catalog = listCatalogModels(providerId)
-  if (catalog.length > 0) return catalog
-
-  // 2) Live list from opencode (only authenticated providers)
+  // 1) Live list from opencode = the source of truth for supported models.
   const live = listModels().filter((m) => m.provider === providerId)
-  if (live.length > 0) return live
 
-  return []
+  if (live.length > 0) {
+    // Enrich the live models with catalog metadata (name/toolCall/free) when available.
+    const catalog = listCatalogModels(providerId)
+    const byId = new Map(catalog.map((c) => [c.model, c]))
+    return live.map((m) => {
+      const meta = byId.get(m.model)
+      return meta ? { ...m, name: meta.name, toolCall: meta.toolCall, free: meta.free } : m
+    })
+  }
+
+  // 2) Not authenticated yet → show the catalog so the user can pick a model,
+  //    then add their key. (These may include models opencode later rejects, but
+  //    it's better than an empty dropdown.)
+  return listCatalogModels(providerId)
 }
 
 // --- models.dev catalog (bundled by opencode) ---

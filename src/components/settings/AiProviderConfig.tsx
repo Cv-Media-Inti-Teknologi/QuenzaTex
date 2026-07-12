@@ -228,7 +228,6 @@ export function AiProviderConfig() {
                 return (
                   <SelectItem key={prov.id} value={prov.id}>
                     <span className="flex items-center gap-2">
-                      {prov.custom && <Settings2 size={13} className="text-muted-foreground" />}
                       {prov.name}
                       {st?.connected && st.authType === "api" && (
                         <span className="text-emerald-600 text-xs">• connected</span>
