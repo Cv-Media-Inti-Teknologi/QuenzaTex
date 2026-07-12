@@ -24,6 +24,17 @@ export interface CuratedProvider {
   hint: string
   /** example model ids for quick reference */
   exampleModels: string[]
+  /** true for the "Custom (OpenAI-compatible)" pseudo-provider */
+  custom?: boolean
+}
+
+export interface CustomProviderConfig {
+  /** provider id used in opencode.json (slug) */
+  id: string
+  name: string
+  baseURL: string
+  apiKey: string
+  modelId: string
 }
 
 export interface ProviderStatus {
@@ -36,6 +47,9 @@ export interface ModelEntry {
   provider: string
   model: string
   full: string
+  name?: string
+  toolCall?: boolean
+  free?: boolean
 }
 
 const FREE_DEFAULT_MODEL = "opencode/deepseek-v4-flash-free"
@@ -61,6 +75,14 @@ const CURATED_PROVIDERS: CuratedProvider[] = [
     keyUrl: "https://console.anthropic.com/settings/keys",
     hint: "Paste your Anthropic API key (starts with sk-ant-...).",
     exampleModels: ["anthropic/claude-sonnet-4-5", "anthropic/claude-3-5-haiku"],
+  },
+  {
+    id: "custom",
+    name: "Custom (OpenAI-compatible)",
+    keyUrl: "https://opencode.ai/docs/providers/",
+    hint: "Connect any OpenAI-compatible endpoint (LM Studio, Ollama, Groq, etc.).",
+    exampleModels: [],
+    custom: true,
   },
 ]
 
@@ -142,6 +164,158 @@ export function removeApiKey(providerId: string): { ok: boolean; error?: string 
 
 let modelCache: ModelEntry[] | null = null
 
+/** Global opencode config path: ~/.config/opencode/opencode.json */
+function getConfigPath(): string {
+  return path.join(os.homedir(), ".config", "opencode", "opencode.json")
+}
+
+function readConfigJson(): Record<string, any> {
+  const p = getConfigPath()
+  if (!existsSync(p)) return { $schema: "https://opencode.ai/config.json" }
+  try {
+    return JSON.parse(readFileSync(p, "utf-8")) || {}
+  } catch (err) {
+    logger.warn("Failed to parse opencode.json", err)
+    return { $schema: "https://opencode.ai/config.json" }
+  }
+}
+
+function writeConfigJson(data: Record<string, any>): void {
+  const p = getConfigPath()
+  const dir = path.dirname(p)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(p, JSON.stringify(data, null, 2), "utf-8")
+}
+
+/**
+ * Configure a custom OpenAI-compatible provider in opencode.json, per the
+ * opencode docs (provider.<id>.npm = "@ai-sdk/openai-compatible", options.baseURL,
+ * options.apiKey, models map). Returns the full model id (provider/model).
+ */
+export function saveCustomProvider(
+  cfg: CustomProviderConfig
+): { ok: boolean; error?: string; model?: string } {
+  const id = (cfg.id || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "")
+  const baseURL = (cfg.baseURL || "").trim()
+  const apiKey = (cfg.apiKey || "").trim()
+  const modelId = (cfg.modelId || "").trim()
+  const name = (cfg.name || cfg.id || "Custom").trim()
+
+  if (!id || !baseURL || !modelId) {
+    return { ok: false, error: "Provider id, base URL, and model id are required." }
+  }
+
+  try {
+    // Store the key in auth.json (opencode's credential store)
+    if (apiKey) {
+      const auth = readAuthJson()
+      auth[id] = { type: "api", key: apiKey }
+      writeAuthJson(auth)
+    }
+
+    // Register the provider + model in opencode.json
+    const config = readConfigJson()
+    config.provider = config.provider || {}
+    config.provider[id] = {
+      npm: "@ai-sdk/openai-compatible",
+      name,
+      options: { baseURL },
+      models: {
+        [modelId]: { name: modelId },
+      },
+    }
+    writeConfigJson(config)
+
+    modelCache = null // invalidate so the new model shows up
+    const full = `${id}/${modelId}`
+    logger.ai(`Saved custom provider: ${full}`)
+    return { ok: true, model: full }
+  } catch (err: any) {
+    logger.error("Failed to save custom provider", err?.message)
+    return { ok: false, error: err?.message || "Failed to write config." }
+  }
+}
+
+/**
+ * Ping-pong connectivity check: sends a tiny message to the given model and
+ * verifies it replies without an auth/model error. Confirms the API key,
+ * base URL, and model id are all valid.
+ */
+export function checkConnection(
+  modelFull: string
+): { ok: boolean; error?: string; reply?: string; ms?: number } {
+  if (!modelFull || !modelFull.includes("/")) {
+    return { ok: false, error: "No model selected." }
+  }
+
+  const bin = resolveOpenCodeBinary()
+  const needsShell = bin.endsWith(".cmd")
+  const start = Date.now()
+  try {
+    const result = spawnSync(
+      bin,
+      [
+        "run",
+        "--agent",
+        "build",
+        "--model",
+        modelFull,
+        "Connectivity test. Reply with the single word: PONG",
+      ],
+      {
+        encoding: "utf-8",
+        shell: needsShell,
+        timeout: 45000,
+        maxBuffer: 1024 * 1024 * 10,
+      }
+    )
+    const ms = Date.now() - start
+    const stdout = (result.stdout || "").replace(/\x1b\[[0-9;]*m/g, "")
+    const stderr = (result.stderr || "").replace(/\x1b\[[0-9;]*m/g, "")
+    const combined = `${stdout}\n${stderr}`
+
+    // Model / provider not found
+    if (/ProviderModelNotFound|Model not found|Did you mean/i.test(combined)) {
+      return { ok: false, error: "Model not found — check the model ID.", ms }
+    }
+    // Auth problems
+    if (/unauthor|invalid[\s_-]?api|api[\s_-]?key|401|forbidden|authentication/i.test(combined)) {
+      return { ok: false, error: "Authentication failed — check your API key.", ms }
+    }
+    // Endpoint / network problems (common for custom baseURL)
+    if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|fetch failed|network|getaddrinfo/i.test(combined)) {
+      return { ok: false, error: "Could not reach the endpoint — check the base URL.", ms }
+    }
+    // Generic opencode error envelope
+    if (/"name":\s*"\w*Error"|^Error:/im.test(combined) || (result.status ?? 0) !== 0) {
+      const m = combined.match(/"message":\s*"([^"]+)"/)
+      return { ok: false, error: m?.[1] || "The model returned an error.", ms }
+    }
+
+    // Success: extract a short reply snippet
+    const reply = stdout
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith(">") && !l.startsWith("timestamp="))
+      .join(" ")
+      .slice(0, 80)
+
+    if (!reply) {
+      return { ok: false, error: "No response from the model.", ms }
+    }
+
+    logger.ai(`Check connection OK for ${modelFull} (${ms}ms)`)
+    return { ok: true, reply, ms }
+  } catch (err: any) {
+    const ms = Date.now() - start
+    logger.error(`Check connection failed for ${modelFull}`, err?.message)
+    if (err?.signal === "SIGTERM" || /tim* out/i.test(err?.message || "")) {
+      return { ok: false, error: "Timed out — the model took too long to respond.", ms }
+    }
+    return { ok: false, error: err?.message || "Connection check failed.", ms }
+  }
+}
+
 /** List all available models via `opencode models`, parsed as provider/model. */
 export function listModels(force = false): ModelEntry[] {
   if (modelCache && !force) return modelCache
@@ -176,9 +350,87 @@ export function listModels(force = false): ModelEntry[] {
   }
 }
 
-/** Models for a given provider id. */
+/** Models for a given provider id — catalog first, then live opencode, then examples. */
 export function listModelsForProvider(providerId: string): ModelEntry[] {
-  return listModels().filter((m) => m.provider === providerId)
+  // 1) Full models.dev catalog (works even before the provider is authenticated)
+  const catalog = listCatalogModels(providerId)
+  if (catalog.length > 0) return catalog
+
+  // 2) Live list from opencode (only authenticated providers)
+  const live = listModels().filter((m) => m.provider === providerId)
+  if (live.length > 0) return live
+
+  return []
+}
+
+// --- models.dev catalog (bundled by opencode) ---
+
+const catalogCache = new Map<string, ModelEntry[]>()
+
+function getCatalogPath(): string | null {
+  // opencode caches the full models.dev catalog here
+  const candidates = [
+    path.join(os.homedir(), ".cache", "opencode", "models.json"),
+    process.env.LOCALAPPDATA &&
+      path.join(process.env.LOCALAPPDATA, "opencode", "cache", "models.json"),
+  ].filter(Boolean) as string[]
+  for (const c of candidates) {
+    if (existsSync(c)) return c
+  }
+  return null
+}
+
+// Non-chat model id patterns we hide from the picker
+const NON_CHAT = /(embedding|embed|tts|whisper|audio|realtime|image|dall-?e|vision-only|moderation|rerank|speech|transcribe|guard)/i
+
+/**
+ * Read the full models.dev catalog for a provider. Returns chat/agent models
+ * with tool-calling and cost flags, without requiring the provider to be
+ * authenticated.
+ */
+export function listCatalogModels(providerId: string): ModelEntry[] {
+  const cached = catalogCache.get(providerId)
+  if (cached) return cached
+
+  const p = getCatalogPath()
+  if (!p) return []
+
+  try {
+    const catalog = JSON.parse(readFileSync(p, "utf-8"))
+    const prov = catalog?.[providerId]
+    if (!prov?.models) return []
+
+    const entries: ModelEntry[] = []
+    for (const [modelId, raw] of Object.entries<any>(prov.models)) {
+      if (NON_CHAT.test(modelId)) continue
+      // keep only models that output text
+      const outputs: string[] = raw?.modalities?.output || ["text"]
+      if (!outputs.includes("text")) continue
+
+      const cost = raw?.cost
+      const free = !cost || (Number(cost.input) === 0 && Number(cost.output) === 0)
+      entries.push({
+        provider: providerId,
+        model: modelId,
+        full: `${providerId}/${modelId}`,
+        name: raw?.name || modelId,
+        toolCall: !!raw?.tool_call,
+        free,
+      })
+    }
+
+    // Sort: tool-capable first, then by name
+    entries.sort((a, b) => {
+      if (!!a.toolCall !== !!b.toolCall) return a.toolCall ? -1 : 1
+      return (a.name || a.model).localeCompare(b.name || b.model)
+    })
+
+    catalogCache.set(providerId, entries)
+    return entries
+  } catch (err: any) {
+    logger.warn(`Failed to read models catalog for ${providerId}: ${err?.message}`)
+    return []
+  }
 }
 
 export function getFreeDefaultModel(): string {

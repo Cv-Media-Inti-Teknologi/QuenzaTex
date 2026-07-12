@@ -1,6 +1,7 @@
 import { useRef, useCallback } from "react"
-import Editor, { OnMount } from "@monaco-editor/react"
+import Editor, { OnMount, BeforeMount } from "@monaco-editor/react"
 import type { editor } from "monaco-editor"
+import { latexLanguageDef, latexMonarchTokens, latexLanguageConfig } from "@/lib/latex-monarch"
 
 interface Props {
   value: string
@@ -11,6 +12,12 @@ interface Props {
 
 export function LatexEditor({ value, filePath, onChange, onSave }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+
+  const handleBeforeMount: BeforeMount = (monaco) => {
+    monaco.languages.register(latexLanguageDef)
+    monaco.languages.setLanguageConfiguration("latex", latexLanguageConfig)
+    monaco.languages.setMonarchTokensProvider("latex", latexMonarchTokens)
+  }
 
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor
@@ -36,6 +43,7 @@ export function LatexEditor({ value, filePath, onChange, onSave }: Props) {
       value={value}
       path={fileName}
       theme="light"
+      beforeMount={handleBeforeMount}
       onMount={handleMount}
       options={{
         fontSize: 14,

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron"
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron"
 import path from "path"
 import fs from "fs"
 import { compileLatex, checkLatexInstallation, startLatexWatch } from "./services/latex"
@@ -16,6 +16,8 @@ import {
   removeApiKey,
   listModels,
   listModelsForProvider,
+  saveCustomProvider,
+  checkConnection,
 } from "./services/ai-config"
 import {
   loadSession,
@@ -25,6 +27,7 @@ import {
   type ChatMessageData,
 } from "./services/session"
 import { logger, logFromRenderer } from "./services/logger"
+import { buildAppMenu } from "./menu"
 
 let mainWindow: BrowserWindow | null = null
 let currentProjectDir: string | null = null
@@ -124,6 +127,17 @@ function registerIpcHandlers() {
     const entries = getAllFiles(dirPath)
     logger.dir(`List dir: ${path.basename(dirPath)} (${entries.length} items)`)
     return entries
+  })
+
+  ipcMain.handle("file:show-in-folder", async (_, filePath: string) => {
+    try {
+      shell.showItemInFolder(filePath)
+      logger.file(`Revealed in Explorer: ${path.basename(filePath)}`)
+      return true
+    } catch (err) {
+      logger.error(`Failed to reveal in Explorer: ${filePath}`, err)
+      return false
+    }
   })
 
   let latexWatcher: { stop: () => void } | null = null
@@ -305,6 +319,21 @@ function registerIpcHandlers() {
     return getProviderStatus()
   })
 
+  ipcMain.handle("ai:save-custom-provider", async (_, cfg: {
+    id: string
+    name: string
+    baseURL: string
+    apiKey: string
+    modelId: string
+  }) => {
+    return saveCustomProvider(cfg)
+  })
+
+  ipcMain.handle("ai:check-connection", async (_, modelFull: string) => {
+    logger.ai(`Check connection: ${modelFull}`)
+    return checkConnection(modelFull)
+  })
+
   ipcMain.handle("session:load", async (_, projectPath: string) => {
     const messages = loadSession(projectPath)
     logger.session(`Loaded: ${path.basename(projectPath)} (${messages.length} messages)`)
@@ -340,6 +369,7 @@ app.whenReady().then(() => {
 
   registerIpcHandlers()
   createWindow()
+  buildAppMenu(mainWindow)
   logger.ready("Window created")
 
   startOpenCode()
@@ -349,6 +379,7 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       logger.lifecycle("Reactivated (macOS)")
       createWindow()
+      buildAppMenu(mainWindow)
     }
   })
 })

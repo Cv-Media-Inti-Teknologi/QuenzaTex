@@ -8,6 +8,9 @@ export interface AiProviderConfig {
 }
 
 interface Settings {
+  general: {
+    showTipOfTheDay: boolean
+  }
   ai: AiProviderConfig
   editor: {
     fontSize: number
@@ -22,6 +25,7 @@ interface Settings {
 
 interface SettingsContextValue {
   settings: Settings
+  updateGeneral: (config: Partial<Settings["general"]>) => void
   updateAi: (config: Partial<AiProviderConfig>) => void
   updateEditor: (config: Partial<Settings["editor"]>) => void
   updateLatex: (config: Partial<Settings["latex"]>) => void
@@ -29,6 +33,9 @@ interface SettingsContextValue {
 }
 
 const defaultSettings: Settings = {
+  general: {
+    showTipOfTheDay: true,
+  },
   ai: {
     provider: "opencode",
     model: "default",
@@ -70,6 +77,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings(next)
   }, [])
 
+  const updateGeneral = useCallback((config: Partial<Settings["general"]>) => {
+    setSettings((prev) => {
+      const next = { ...prev, general: { ...prev.general, ...config } }
+      saveSettings(next)
+      return next
+    })
+  }, [])
+
   const updateAi = useCallback((config: Partial<AiProviderConfig>) => {
     setSettings((prev) => {
       const next = { ...prev, ai: { ...prev.ai, ...config } }
@@ -99,7 +114,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [persist])
 
   return (
-    <SettingsContext.Provider value={{ settings, updateAi, updateEditor, updateLatex, resetSettings }}>
+    <SettingsContext.Provider value={{ settings, updateGeneral, updateAi, updateEditor, updateLatex, resetSettings }}>
       {children}
     </SettingsContext.Provider>
   )

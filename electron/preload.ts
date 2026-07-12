@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readFile: (path: string) => ipcRenderer.invoke("file:read", path),
   writeFile: (path: string, content: string) => ipcRenderer.invoke("file:write", path, content),
   listDir: (dir: string) => ipcRenderer.invoke("file:listDir", dir),
+  showItemInFolder: (path: string) => ipcRenderer.invoke("file:show-in-folder", path),
   latexCompile: (file: string) => ipcRenderer.invoke("latex:compile", file),
   latexCheck: () => ipcRenderer.invoke("latex:check"),
   latexWatch: (file: string) => ipcRenderer.invoke("latex:watch", file),
@@ -31,6 +32,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   aiSaveKey: (providerId: string, key: string) => ipcRenderer.invoke("ai:save-key", providerId, key),
   aiRemoveKey: (providerId: string) => ipcRenderer.invoke("ai:remove-key", providerId),
   aiGetStatus: () => ipcRenderer.invoke("ai:get-status"),
+  aiSaveCustomProvider: (cfg: { id: string; name: string; baseURL: string; apiKey: string; modelId: string }) =>
+    ipcRenderer.invoke("ai:save-custom-provider", cfg),
+  aiCheckConnection: (modelFull: string) => ipcRenderer.invoke("ai:check-connection", modelFull),
   sessionLoad: (projectPath: string) => ipcRenderer.invoke("session:load", projectPath),
   sessionSave: (projectPath: string, messages: any[]) =>
     ipcRenderer.invoke("session:save", projectPath, messages),
@@ -41,6 +45,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("project:files-changed", handler)
     return () => {
       ipcRenderer.removeListener("project:files-changed", handler)
+    }
+  },
+  onMenuAction: (callback: (action: string) => void) => {
+    const handler = (_: unknown, action: string) => callback(action)
+    ipcRenderer.on("menu:action", handler)
+    return () => {
+      ipcRenderer.removeListener("menu:action", handler)
     }
   },
 })

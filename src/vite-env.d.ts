@@ -36,6 +36,7 @@ interface CuratedProvider {
   keyUrl: string
   hint: string
   exampleModels: string[]
+  custom?: boolean
 }
 
 interface ProviderStatus {
@@ -48,6 +49,9 @@ interface ModelEntry {
   provider: string
   model: string
   full: string
+  name?: string
+  toolCall?: boolean
+  free?: boolean
 }
 
 interface ElectronAPI {
@@ -56,6 +60,7 @@ interface ElectronAPI {
   readFile: (path: string) => Promise<string | null>
   writeFile: (path: string, content: string) => Promise<boolean>
   listDir: (dir: string) => Promise<FileEntry[]>
+  showItemInFolder: (path: string) => Promise<boolean>
   latexCompile: (file: string) => Promise<CompileResult>
   latexCheck: () => Promise<boolean>
   latexWatch: (file: string) => Promise<boolean>
@@ -83,11 +88,25 @@ interface ElectronAPI {
   aiSaveKey: (providerId: string, key: string) => Promise<{ ok: boolean; error?: string }>
   aiRemoveKey: (providerId: string) => Promise<{ ok: boolean; error?: string }>
   aiGetStatus: () => Promise<ProviderStatus[]>
+  aiSaveCustomProvider: (cfg: {
+    id: string
+    name: string
+    baseURL: string
+    apiKey: string
+    modelId: string
+  }) => Promise<{ ok: boolean; error?: string; model?: string }>
+  aiCheckConnection: (modelFull: string) => Promise<{
+    ok: boolean
+    error?: string
+    reply?: string
+    ms?: number
+  }>
   sessionLoad: (projectPath: string) => Promise<ChatMessageData[]>
   sessionSave: (projectPath: string, messages: ChatMessageData[]) => Promise<boolean>
   sessionDelete: (projectPath: string) => Promise<boolean>
   sessionList: () => Promise<{ path: string; lastOpened: string }[]>
   onFilesChanged: (callback: () => void) => () => void
+  onMenuAction: (callback: (action: string) => void) => () => void
 }
 
 interface Window {
