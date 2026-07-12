@@ -233,6 +233,86 @@ export function saveCustomProvider(
   }
 }
 
+/**
+ * Ping-pong connectivity check: sends a tiny message to the given model and
+ * verifies it replies without an auth/model error. Confirms the API key,
+ * base URL, and model id are all valid.
+ */
+export function checkConnection(
+  modelFull: string
+): { ok: boolean; error?: string; reply?: string; ms?: number } {
+  if (!modelFull || !modelFull.includes("/")) {
+    return { ok: false, error: "No model selected." }
+  }
+
+  const bin = resolveOpenCodeBinary()
+  const needsShell = bin.endsWith(".cmd")
+  const start = Date.now()
+  try {
+    const result = spawnSync(
+      bin,
+      [
+        "run",
+        "--agent",
+        "build",
+        "--model",
+        modelFull,
+        "Connectivity test. Reply with the single word: PONG",
+      ],
+      {
+        encoding: "utf-8",
+        shell: needsShell,
+        timeout: 45000,
+        maxBuffer: 1024 * 1024 * 10,
+      }
+    )
+    const ms = Date.now() - start
+    const stdout = (result.stdout || "").replace(/\x1b\[[0-9;]*m/g, "")
+    const stderr = (result.stderr || "").replace(/\x1b\[[0-9;]*m/g, "")
+    const combined = `${stdout}\n${stderr}`
+
+    // Model / provider not found
+    if (/ProviderModelNotFound|Model not found|Did you mean/i.test(combined)) {
+      return { ok: false, error: "Model not found — check the model ID.", ms }
+    }
+    // Auth problems
+    if (/unauthor|invalid[\s_-]?api|api[\s_-]?key|401|forbidden|authentication/i.test(combined)) {
+      return { ok: false, error: "Authentication failed — check your API key.", ms }
+    }
+    // Endpoint / network problems (common for custom baseURL)
+    if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|fetch failed|network|getaddrinfo/i.test(combined)) {
+      return { ok: false, error: "Could not reach the endpoint — check the base URL.", ms }
+    }
+    // Generic opencode error envelope
+    if (/"name":\s*"\w*Error"|^Error:/im.test(combined) || (result.status ?? 0) !== 0) {
+      const m = combined.match(/"message":\s*"([^"]+)"/)
+      return { ok: false, error: m?.[1] || "The model returned an error.", ms }
+    }
+
+    // Success: extract a short reply snippet
+    const reply = stdout
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith(">") && !l.startsWith("timestamp="))
+      .join(" ")
+      .slice(0, 80)
+
+    if (!reply) {
+      return { ok: false, error: "No response from the model.", ms }
+    }
+
+    logger.ai(`Check connection OK for ${modelFull} (${ms}ms)`)
+    return { ok: true, reply, ms }
+  } catch (err: any) {
+    const ms = Date.now() - start
+    logger.error(`Check connection failed for ${modelFull}`, err?.message)
+    if (err?.signal === "SIGTERM" || /tim* out/i.test(err?.message || "")) {
+      return { ok: false, error: "Timed out — the model took too long to respond.", ms }
+    }
+    return { ok: false, error: err?.message || "Connection check failed.", ms }
+  }
+}
+
 /** List all available models via `opencode models`, parsed as provider/model. */
 export function listModels(force = false): ModelEntry[] {
   if (modelCache && !force) return modelCache

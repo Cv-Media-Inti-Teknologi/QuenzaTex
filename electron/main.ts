@@ -17,6 +17,7 @@ import {
   listModels,
   listModelsForProvider,
   saveCustomProvider,
+  checkConnection,
 } from "./services/ai-config"
 import {
   loadSession,
@@ -314,6 +315,11 @@ function registerIpcHandlers() {
     modelId: string
   }) => {
     return saveCustomProvider(cfg)
+  })
+
+  ipcMain.handle("ai:check-connection", async (_, modelFull: string) => {
+    logger.ai(`Check connection: ${modelFull}`)
+    return checkConnection(modelFull)
   })
 
   ipcMain.handle("session:load", async (_, projectPath: string) => {

@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   aiGetStatus: () => ipcRenderer.invoke("ai:get-status"),
   aiSaveCustomProvider: (cfg: { id: string; name: string; baseURL: string; apiKey: string; modelId: string }) =>
     ipcRenderer.invoke("ai:save-custom-provider", cfg),
+  aiCheckConnection: (modelFull: string) => ipcRenderer.invoke("ai:check-connection", modelFull),
   sessionLoad: (projectPath: string) => ipcRenderer.invoke("session:load", projectPath),
   sessionSave: (projectPath: string, messages: any[]) =>
     ipcRenderer.invoke("session:save", projectPath, messages),

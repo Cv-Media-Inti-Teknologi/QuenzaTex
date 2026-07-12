@@ -10,6 +10,9 @@ import {
   Loader2,
   Trash2,
   Settings2,
+  Activity,
+  CircleCheck,
+  CircleX,
 } from "lucide-react"
 import { useSettings } from "../../store/SettingsContext"
 import { Button } from "@/components/ui/button"
@@ -189,9 +192,6 @@ export function AiProviderConfig() {
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
               Bundled opencode model — no API key required. Great for getting started.
             </p>
-            <p className="text-[11px] text-muted-foreground/70 mt-1 font-mono">
-              {FREE_MODEL}
-            </p>
           </div>
         </div>
       </button>
@@ -220,7 +220,7 @@ export function AiProviderConfig() {
               <SelectItem value={FREE}>
                 <span className="flex items-center gap-2">
                   <Sparkles size={13} className="text-primary" />
-                  Free (opencode default)
+                  Free
                 </span>
               </SelectItem>
               {curated.map((prov) => {
@@ -234,7 +234,7 @@ export function AiProviderConfig() {
                         <span className="text-emerald-600 text-xs">• connected</span>
                       )}
                       {st?.connected && st.authType === "oauth" && (
-                        <span className="text-muted-foreground text-xs">• via opencode</span>
+                        <span className="text-muted-foreground text-xs">• connected</span>
                       )}
                     </span>
                   </SelectItem>
@@ -312,7 +312,7 @@ function ProviderDetail({
             <Check size={11} /> Connected
           </Badge>
         ) : viaOpencode ? (
-          <Badge variant="muted">via opencode</Badge>
+          <Badge variant="muted">Connected</Badge>
         ) : (
           <Badge variant="muted">No key</Badge>
         )}
@@ -320,7 +320,7 @@ function ProviderDetail({
 
       {viaOpencode && (
         <p className="text-[11px] text-muted-foreground -mt-1">
-          Already signed in through opencode. You can use it as-is, or paste your
+          Already signed in. You can use it as-is, or paste your
           own API key below to override.
         </p>
       )}
@@ -399,6 +399,11 @@ function ProviderDetail({
           )}
         </div>
       )}
+
+      {/* Ping-pong connectivity check (only when a model is active for this provider) */}
+      {connected && activeModel && activeModel.startsWith(`${provider.id}/`) && (
+        <CheckConnectionButton model={activeModel} />
+      )}
     </div>
   )
 }
@@ -435,8 +440,7 @@ function CustomProviderForm({
       </div>
       <p className="text-[11px] text-muted-foreground -mt-1">
         Works with LM Studio, Ollama, Groq, or any endpoint exposing
-        <span className="font-mono"> /v1/chat/completions</span>. Saved to your
-        opencode config.
+        <span className="font-mono"> /v1/chat/completions</span>.
       </p>
 
       <div className="grid grid-cols-2 gap-3">
@@ -505,6 +509,69 @@ function CustomProviderForm({
       >
         {saving ? <Loader2 size={15} className="animate-spin" /> : "Save & use this provider"}
       </Button>
+
+      {valid && (
+        <CheckConnectionButton model={`${id.trim()}/${modelId.trim()}`} />
+      )}
+    </div>
+  )
+}
+
+function CheckConnectionButton({ model }: { model: string }) {
+  const [state, setState] = useState<"idle" | "checking" | "ok" | "fail">("idle")
+  const [message, setMessage] = useState<string>("")
+
+  const run = async () => {
+    setState("checking")
+    setMessage("")
+    try {
+      const res = await window.electronAPI.aiCheckConnection(model)
+      if (res.ok) {
+        setState("ok")
+        setMessage(`Model replied${res.ms ? ` in ${(res.ms / 1000).toFixed(1)}s` : ""}`)
+        toast.success("Connection OK", { description: res.reply })
+      } else {
+        setState("fail")
+        setMessage(res.error || "Connection failed")
+        toast.error("Connection failed", { description: res.error })
+      }
+    } catch (err: any) {
+      setState("fail")
+      setMessage(err?.message || "Connection failed")
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Button
+        variant="outline"
+        className="w-full gap-2"
+        onClick={run}
+        disabled={state === "checking"}
+      >
+        {state === "checking" ? (
+          <>
+            <Loader2 size={15} className="animate-spin" /> Pinging model…
+          </>
+        ) : (
+          <>
+            <Activity size={15} /> Check connection
+          </>
+        )}
+      </Button>
+      {state === "ok" && (
+        <p className="text-xs text-emerald-600 flex items-center gap-1.5">
+          <CircleCheck size={13} /> {message}
+        </p>
+      )}
+      {state === "fail" && (
+        <p className="text-xs text-destructive flex items-center gap-1.5">
+          <CircleX size={13} /> {message}
+        </p>
+      )}
+      <p className="text-[11px] text-muted-foreground">
+        Sends a tiny test message to verify your key, model, and endpoint.
+      </p>
     </div>
   )
 }

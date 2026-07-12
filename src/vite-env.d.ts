@@ -91,6 +91,12 @@ interface ElectronAPI {
     apiKey: string
     modelId: string
   }) => Promise<{ ok: boolean; error?: string; model?: string }>
+  aiCheckConnection: (modelFull: string) => Promise<{
+    ok: boolean
+    error?: string
+    reply?: string
+    ms?: number
+  }>
   sessionLoad: (projectPath: string) => Promise<ChatMessageData[]>
   sessionSave: (projectPath: string, messages: ChatMessageData[]) => Promise<boolean>
   sessionDelete: (projectPath: string) => Promise<boolean>
