@@ -67,7 +67,7 @@ export function ChatView({ messages, sending, onSend, onClear, onClose }: Props)
 
       {/* Scrollable messages — min-h-0 lets this flex child shrink so overflow works */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-6 py-6 space-y-6">
+        <div className="chat-container">
           {messages.length === 0 && (
             <div className="text-center mt-16 px-4">
               <div className="mx-auto w-12 h-12 rounded-2xl bg-accent flex items-center justify-center mb-4">

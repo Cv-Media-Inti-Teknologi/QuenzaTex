@@ -1,7 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react"
-import { Send, Loader2 } from "lucide-react"
 import { MentionDropdown } from "./MentionDropdown"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 interface FileSuggestion {
@@ -78,13 +76,7 @@ export function MessageInput({ onSend, disabled }: Props) {
             onKeyDown={handleKeyDown}
             placeholder="Ask AI to build or edit your LaTeX…  (@ to mention files)"
             disabled={disabled}
-            className={cn(
-              "w-full resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm shadow-sm",
-              "placeholder:text-muted-foreground leading-relaxed",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "max-h-40 overflow-y-auto"
-            )}
+            className="message-input w-full resize-none border border-input bg-background text-sm shadow-sm placeholder:text-muted-foreground leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring disabled:opacity-50 disabled:cursor-not-allowed max-h-40 overflow-y-auto"
           />
           {showMentions && (
             <MentionDropdown
@@ -94,18 +86,6 @@ export function MessageInput({ onSend, disabled }: Props) {
             />
           )}
         </div>
-        <Button
-          size="icon"
-          onClick={handleSubmit}
-          disabled={disabled || !text.trim()}
-          className="h-10 w-10 rounded-xl shrink-0"
-        >
-          {disabled ? (
-            <Loader2 size={17} className="animate-spin" />
-          ) : (
-            <Send size={17} />
-          )}
-        </Button>
       </div>
       <p className="mt-1.5 px-1 text-[11px] text-muted-foreground">
         Enter to send · Shift+Enter for new line
