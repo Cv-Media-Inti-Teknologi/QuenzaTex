@@ -41,6 +41,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+    icon: path.join(__dirname, "../../resources/icon.png"),
   })
 
   mainWindow.on("ready-to-show", () => {
