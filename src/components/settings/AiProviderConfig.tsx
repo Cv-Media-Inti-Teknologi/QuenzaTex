@@ -190,7 +190,7 @@ export function AiProviderConfig() {
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Bundled opencode model — no API key required. Great for getting started.
+              Bundled AI model — no API key required. Great for getting started.
             </p>
           </div>
         </div>

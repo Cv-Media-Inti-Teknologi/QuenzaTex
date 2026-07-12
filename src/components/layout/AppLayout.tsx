@@ -4,6 +4,7 @@ import { ExplorerPanel } from "./ExplorerPanel"
 import { EditorPanel } from "./EditorPanel"
 import { PreviewPanel } from "./PreviewPanel"
 import { AIPanel } from "./AIPanel"
+import { TopBar } from "./TopBar"
 import { WelcomeOnboarding } from "../onboarding/WelcomeOnboarding"
 import { SetupWizard } from "../onboarding/SetupWizard"
 import { TipOfTheDay } from "../tips/TipOfTheDay"
@@ -249,8 +250,17 @@ export function AppLayout() {
   }, [])
 
   return (
-    <div ref={containerRef} className="h-screen w-screen bg-background overflow-hidden select-none">
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+    <div ref={containerRef} className="h-screen w-screen bg-background overflow-hidden select-none flex flex-col">
+      <TopBar
+        projectName={project?.rootPath.split(/[/\\]/).pop() || null}
+        explorerHidden={explorerHidden}
+        aiHidden={aiHidden}
+        onToggleExplorer={() => setExplorerHidden((v) => !v)}
+        onToggleAi={() => setAiHidden((v) => !v)}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenProject={openProject}
+      />
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 w-full">
         {!explorerHidden && (
           <>
             <ResizablePanel

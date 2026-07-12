@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ChevronDown,
   FolderOpen,
-  Settings2,
   FolderOpen as OpenIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -140,19 +139,6 @@ export function ExplorerPanel({
           <span>Explorer</span>
         </div>
         <div className="flex items-center gap-0.5">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onOpenSettings}
-                className="text-muted-foreground"
-              >
-                <Settings2 size={15} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Settings (Ctrl+,)</TooltipContent>
-          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
