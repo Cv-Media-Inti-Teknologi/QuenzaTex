@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron"
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  logFromRenderer: (...args: any[]) => ipcRenderer.send("log:from-renderer", ...args),
   openProject: () => ipcRenderer.invoke("project:open"),
   readFile: (path: string) => ipcRenderer.invoke("file:read", path),
   writeFile: (path: string, content: string) => ipcRenderer.invoke("file:write", path, content),
@@ -23,6 +24,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   ) => ipcRenderer.invoke("opencode:send-with-context", message, projectPath, fileList, history, model),
   checkEnvironment: () => ipcRenderer.invoke("env:check"),
   installOpencode: () => ipcRenderer.invoke("env:install-opencode"),
+  aiListProviders: () => ipcRenderer.invoke("ai:list-providers"),
+  aiListModels: (providerId?: string) => ipcRenderer.invoke("ai:list-models", providerId),
+  aiSaveKey: (providerId: string, key: string) => ipcRenderer.invoke("ai:save-key", providerId, key),
+  aiRemoveKey: (providerId: string) => ipcRenderer.invoke("ai:remove-key", providerId),
+  aiGetStatus: () => ipcRenderer.invoke("ai:get-status"),
   sessionLoad: (projectPath: string) => ipcRenderer.invoke("session:load", projectPath),
   sessionSave: (projectPath: string, messages: any[]) =>
     ipcRenderer.invoke("session:save", projectPath, messages),

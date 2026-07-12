@@ -30,7 +30,28 @@ interface ChatMessageData {
   timestamp: string
 }
 
+interface CuratedProvider {
+  id: string
+  name: string
+  keyUrl: string
+  hint: string
+  exampleModels: string[]
+}
+
+interface ProviderStatus {
+  id: string
+  connected: boolean
+  authType: string | null
+}
+
+interface ModelEntry {
+  provider: string
+  model: string
+  full: string
+}
+
 interface ElectronAPI {
+  logFromRenderer: (...args: any[]) => void
   openProject: () => Promise<ProjectInfo | null>
   readFile: (path: string) => Promise<string | null>
   writeFile: (path: string, content: string) => Promise<boolean>
@@ -55,6 +76,11 @@ interface ElectronAPI {
     texlive: { found: boolean; version: string; latexmk: boolean }
   }>
   installOpencode: () => Promise<boolean>
+  aiListProviders: () => Promise<{ curated: CuratedProvider[]; status: ProviderStatus[] }>
+  aiListModels: (providerId?: string) => Promise<ModelEntry[]>
+  aiSaveKey: (providerId: string, key: string) => Promise<{ ok: boolean; error?: string }>
+  aiRemoveKey: (providerId: string) => Promise<{ ok: boolean; error?: string }>
+  aiGetStatus: () => Promise<ProviderStatus[]>
   sessionLoad: (projectPath: string) => Promise<ChatMessageData[]>
   sessionSave: (projectPath: string, messages: ChatMessageData[]) => Promise<boolean>
   sessionDelete: (projectPath: string) => Promise<boolean>

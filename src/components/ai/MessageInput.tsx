@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { Send, Loader2 } from "lucide-react"
 import { MentionDropdown } from "./MentionDropdown"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface FileSuggestion {
   name: string
@@ -16,15 +18,21 @@ export function MessageInput({ onSend, disabled }: Props) {
   const [text, setText] = useState("")
   const [showMentions, setShowMentions] = useState(false)
   const [mentionQuery, setMentionQuery] = useState("")
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-grow the textarea up to a max height
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [text])
 
   const handleChange = useCallback((value: string) => {
     setText(value)
-
     const atIndex = value.lastIndexOf("@")
-    if (atIndex !== -1) {
-      const afterAt = value.slice(atIndex + 1)
-      setMentionQuery(afterAt)
+    if (atIndex !== -1 && !/\s/.test(value.slice(atIndex + 1))) {
+      setMentionQuery(value.slice(atIndex + 1))
       setShowMentions(true)
     } else {
       setShowMentions(false)
@@ -37,7 +45,7 @@ export function MessageInput({ onSend, disabled }: Props) {
       return prev.slice(0, atIndex) + `@${file.name} `
     })
     setShowMentions(false)
-    inputRef.current?.focus()
+    textareaRef.current?.focus()
   }, [])
 
   const handleSubmit = useCallback(() => {
@@ -59,20 +67,24 @@ export function MessageInput({ onSend, disabled }: Props) {
   )
 
   return (
-    <div className="relative">
-      <div className="flex items-end gap-3 p-4 border-t border-[var(--border)]">
-        <div className="flex-1 relative">
-          <input
-            ref={inputRef}
-            type="text"
+    <div className="border-t p-3 shrink-0">
+      <div className="relative flex items-end gap-2">
+        <div className="relative flex-1">
+          <textarea
+            ref={textareaRef}
+            rows={1}
             value={text}
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask AI... (@ to mention files)"
+            placeholder="Ask AI to build or edit your LaTeX…  (@ to mention files)"
             disabled={disabled}
-            className="w-full px-4 py-2.5 text-sm border border-[var(--border)] rounded-xl
-              focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400
-              disabled:opacity-50 disabled:cursor-not-allowed bg-white"
+            className={cn(
+              "w-full resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm shadow-sm",
+              "placeholder:text-muted-foreground leading-relaxed",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+              "max-h-40 overflow-y-auto"
+            )}
           />
           {showMentions && (
             <MentionDropdown
@@ -82,15 +94,22 @@ export function MessageInput({ onSend, disabled }: Props) {
             />
           )}
         </div>
-        <button
+        <Button
+          size="icon"
           onClick={handleSubmit}
           disabled={disabled || !text.trim()}
-          className="flex items-center justify-center w-10 h-10 bg-blue-500 text-white rounded-xl
-            hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          className="h-10 w-10 rounded-xl shrink-0"
         >
-          {disabled ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-        </button>
+          {disabled ? (
+            <Loader2 size={17} className="animate-spin" />
+          ) : (
+            <Send size={17} />
+          )}
+        </Button>
       </div>
+      <p className="mt-1.5 px-1 text-[11px] text-muted-foreground">
+        Enter to send · Shift+Enter for new line
+      </p>
     </div>
   )
 }

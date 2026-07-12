@@ -2,6 +2,7 @@ import { execSync, spawn } from "child_process"
 import path from "path"
 import fs from "fs"
 import { app } from "electron"
+import { logger } from "./logger"
 
 function getLatexmkPath(): string | null {
   try {
@@ -29,6 +30,7 @@ export function checkLatexInstallation(): boolean {
 export function compileLatex(filePath: string): CompileResult {
   const latexmk = getLatexmkPath()
   if (!latexmk) {
+    logger.error(`latexmk not found for: ${filePath}`)
     return {
       success: false,
       output: "latexmk not found. Please install TeX Live.",

@@ -1,4 +1,5 @@
 import { useRef, useCallback } from "react"
+import { logger } from "../lib/logger"
 
 export interface SessionMessage {
   id: string
@@ -15,8 +16,11 @@ export function useSession() {
   const load = useCallback(async (projectPath: string): Promise<SessionMessage[]> => {
     currentProjectRef.current = projectPath
     try {
-      return await window.electronAPI.sessionLoad(projectPath)
-    } catch {
+      const msgs = await window.electronAPI.sessionLoad(projectPath)
+      logger.session(`Load session: ${msgs.length} messages`)
+      return msgs
+    } catch (err) {
+      logger.warn("Session load failed", err)
       return []
     }
   }, [])
@@ -29,7 +33,10 @@ export function useSession() {
       const timer = setTimeout(async () => {
         try {
           await window.electronAPI.sessionSave(projectPath, messages)
-        } catch {}
+          logger.session(`Saved session: ${messages.length} messages`)
+        } catch (err) {
+          logger.warn("Session save failed", err)
+        }
         saveTimers.delete(projectPath)
       }, 1000)
 

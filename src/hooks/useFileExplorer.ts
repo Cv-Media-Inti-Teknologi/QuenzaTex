@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react"
+import { logger } from "../lib/logger"
 
 interface FileNode {
   name: string
@@ -55,14 +56,14 @@ export function useFileExplorer() {
           return n
         })
       setProject({ ...project, files: updateNode(project.files) })
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [project, buildTree])
 
   const selectFile = useCallback(async (filePath: string) => {
     if (!project) return
     setProject({ ...project, selectedFile: filePath })
+    const name = filePath.split(/[/\\]/).pop()
+    logger.file(`Selected: ${name}`)
   }, [project])
 
   const getSelectedContent = useCallback(async () => {
@@ -82,9 +83,8 @@ export function useFileExplorer() {
         ...prev,
         files: buildTree(entries, project.rootPath),
       } : prev)
-    } catch {
-      // ignore
-    }
+      logger.file(`Tree refreshed: ${entries.length} items`)
+    } catch {}
   }, [project, buildTree])
 
   return {

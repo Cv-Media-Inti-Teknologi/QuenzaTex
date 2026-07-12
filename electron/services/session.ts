@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import path from "node:path"
 import { createHash } from "node:crypto"
+import { logger } from "./logger"
 
 export interface ChatMessageData {
   id: string

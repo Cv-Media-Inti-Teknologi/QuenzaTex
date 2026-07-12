@@ -1,5 +1,6 @@
 import { PdfPreview } from "../preview/PdfPreview"
-import { Play } from "lucide-react"
+import { Play, FileText, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface Props {
   pdfPath: string | null
@@ -9,22 +10,29 @@ interface Props {
 
 export function PreviewPanel({ pdfPath, onCompile, compiling }: Props) {
   return (
-    <div className="h-full flex flex-col bg-white min-w-0 flex-1">
-      <div className="flex items-center justify-between px-4 h-11 border-b border-[var(--border)] shrink-0">
-        <span className="text-sm font-medium text-gray-600">Preview</span>
+    <div className="h-full flex flex-col min-h-0 bg-background min-w-0">
+      <div className="flex items-center justify-between px-4 h-11 border-b shrink-0">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <FileText size={15} className="text-muted-foreground" />
+          <span>Preview</span>
+        </div>
         {onCompile && (
-          <button
+          <Button
+            size="sm"
             onClick={onCompile}
             disabled={compiling}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium bg-blue-500 text-white rounded-lg
-              hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="h-7 gap-1.5 text-xs"
           >
-            <Play size={13} />
-            {compiling ? "Compiling..." : "Compile"}
-          </button>
+            {compiling ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Play size={13} />
+            )}
+            {compiling ? "Compiling…" : "Compile"}
+          </Button>
         )}
       </div>
-      <div className="flex-1 flex min-h-0">
+      <div className="flex flex-1 min-h-0">
         <PdfPreview pdfPath={pdfPath} />
       </div>
     </div>

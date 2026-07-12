@@ -10,12 +10,21 @@ import {
 } from "./services/opencode"
 import { checkEnvironment, installOpencode } from "./services/env-setup"
 import {
+  getCuratedProviders,
+  getProviderStatus,
+  saveApiKey,
+  removeApiKey,
+  listModels,
+  listModelsForProvider,
+} from "./services/ai-config"
+import {
   loadSession,
   saveSession,
   deleteSession,
   listSessions,
   type ChatMessageData,
 } from "./services/session"
+import { logger, logFromRenderer } from "./services/logger"
 
 let mainWindow: BrowserWindow | null = null
 let currentProjectDir: string | null = null
@@ -73,19 +82,28 @@ function getAllFiles(dir: string): { name: string; isDirectory: boolean; path: s
 
 function registerIpcHandlers() {
   ipcMain.handle("project:open", async () => {
+    logger.file("Open project dialog...")
     if (!mainWindow) return null
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ["openDirectory"],
     })
-    if (result.canceled || result.filePaths.length === 0) return null
+    if (result.canceled || result.filePaths.length === 0) {
+      logger.file("Project open canceled")
+      return null
+    }
     currentProjectDir = result.filePaths[0]
-    return { path: currentProjectDir, files: getAllFiles(currentProjectDir) }
+    const files = getAllFiles(currentProjectDir)
+    logger.file(`Opened project: ${currentProjectDir} (${files.length} items)`)
+    return { path: currentProjectDir, files }
   })
 
   ipcMain.handle("file:read", async (_, filePath: string) => {
     try {
-      return fs.readFileSync(filePath, "utf-8")
-    } catch {
+      const content = fs.readFileSync(filePath, "utf-8")
+      logger.file(`Read: ${path.basename(filePath)} (${content.length}B)`)
+      return content
+    } catch (err) {
+      logger.warn(`Read failed: ${filePath}`, err)
       return null
     }
   })
@@ -93,33 +111,58 @@ function registerIpcHandlers() {
   ipcMain.handle("file:write", async (_, filePath: string, content: string) => {
     try {
       fs.writeFileSync(filePath, content, "utf-8")
+      logger.save(`Saved: ${path.basename(filePath)} (${content.length}B)`)
       return true
-    } catch {
+    } catch (err) {
+      logger.error(`Save failed: ${filePath}`, err)
       return false
     }
   })
 
   ipcMain.handle("file:listDir", async (_, dirPath: string) => {
-    return getAllFiles(dirPath)
+    const entries = getAllFiles(dirPath)
+    logger.dir(`List dir: ${path.basename(dirPath)} (${entries.length} items)`)
+    return entries
   })
 
   let latexWatcher: { stop: () => void } | null = null
 
   ipcMain.handle("latex:compile", async (_, filePath: string) => {
-    return compileLatex(filePath)
+    const start = Date.now()
+    logger.latex(`Compile: ${path.basename(filePath)}...`)
+    const result = compileLatex(filePath)
+    const duration = Date.now() - start
+    if (result.success) {
+      logger.latex(`Compile OK (${duration}ms): ${path.basename(filePath)} → PDF ready`)
+    } else {
+      logger.latex(`Compile FAILED (${duration}ms): ${result.errors.length} errors`)
+    }
+    return result
   })
 
   ipcMain.handle("latex:check", async () => {
-    return checkLatexInstallation()
+    logger.latex("Checking LaTeX installation...")
+    const result = checkLatexInstallation()
+    logger.latex(`LaTeX check: ${result ? "found" : "not found"}`)
+    return result
   })
 
   ipcMain.handle("latex:watch", async (_, filePath: string) => {
-    if (latexWatcher) latexWatcher.stop()
+    if (latexWatcher) {
+      latexWatcher.stop()
+      logger.info("Stopped previous LaTeX watcher")
+    }
 
     latexWatcher = startLatexWatch(filePath, (result) => {
+      if (result.success) {
+        logger.latex(`Watch auto-compile OK: ${result.pdfPath}`)
+      } else {
+        logger.latex(`Watch auto-compile FAILED: ${result.errors.length} errors`)
+      }
       mainWindow?.webContents.send("latex:compile-result", result)
     })
 
+    logger.latex(`Started watch: ${path.basename(filePath)}`)
     return true
   })
 
@@ -127,16 +170,21 @@ function registerIpcHandlers() {
     if (latexWatcher) {
       latexWatcher.stop()
       latexWatcher = null
+      logger.latex("Stopped LaTeX watcher")
     }
     return true
   })
 
   ipcMain.handle("opencode:status", async () => {
-    return getOpenCodeStatus()
+    const status = getOpenCodeStatus()
+    logger.ai(`Status check: ${status.mode}`)
+    return status
   })
 
   ipcMain.handle("opencode:check-installed", async () => {
-    return isOpenCodeInstalled()
+    const installed = isOpenCodeInstalled()
+    logger.ai(`Installed check: ${installed}`)
+    return installed
   })
 
   ipcMain.handle(
@@ -149,55 +197,121 @@ function registerIpcHandlers() {
       conversationHistory?: { role: string; content: string }[],
       model?: string
     ) => {
+      const msgPreview = message.length > 60 ? message.slice(0, 60) + "..." : message
+      const historyCount = conversationHistory?.length || 0
+      const promptSize = message.length + (fileList?.length || 0)
+      logger.ai(`Send: "${msgPreview}" (history: ${historyCount}, prompt: ~${promptSize}B, model: ${model || "default"})`)
+
+      const start = Date.now()
       const response = await sendOpenCodeMessage(message, {
         projectPath,
         fileList,
         conversationHistory,
         model,
       })
+      const duration = Date.now() - start
+
+      const respPreview = response.length > 80 ? response.slice(0, 80) + "..." : response
+      logger.ai(`Response (${duration}ms): "${respPreview}"`)
+
       mainWindow?.webContents.send("project:files-changed")
+      logger.file("File tree refresh triggered (AI may have changed files)")
       return response
     }
   )
 
   ipcMain.handle("env:check", async () => {
-    return checkEnvironment()
+    logger.lifecycle("Checking environment...")
+    const result = await checkEnvironment()
+    logger.ready(`Node: ${result.node.version}, opencode: ${result.opencode.version}, TeX: ${result.texlive.found ? result.texlive.version : "not found"}`)
+    return result
   })
 
   ipcMain.handle("env:install-opencode", async () => {
-    return installOpencode()
+    logger.lifecycle("Installing opencode...")
+    const ok = await installOpencode()
+    logger.lifecycle(`Install opencode: ${ok ? "OK" : "FAILED"}`)
+    return ok
+  })
+
+  // --- AI provider / model configuration ---
+  ipcMain.handle("ai:list-providers", async () => {
+    const curated = getCuratedProviders()
+    const status = getProviderStatus()
+    return { curated, status }
+  })
+
+  ipcMain.handle("ai:list-models", async (_, providerId?: string) => {
+    const models = providerId ? listModelsForProvider(providerId) : listModels()
+    logger.ai(`List models${providerId ? ` for ${providerId}` : ""}: ${models.length}`)
+    return models
+  })
+
+  ipcMain.handle("ai:save-key", async (_, providerId: string, key: string) => {
+    return saveApiKey(providerId, key)
+  })
+
+  ipcMain.handle("ai:remove-key", async (_, providerId: string) => {
+    return removeApiKey(providerId)
+  })
+
+  ipcMain.handle("ai:get-status", async () => {
+    return getProviderStatus()
   })
 
   ipcMain.handle("session:load", async (_, projectPath: string) => {
-    return loadSession(projectPath)
+    const messages = loadSession(projectPath)
+    logger.session(`Loaded: ${path.basename(projectPath)} (${messages.length} messages)`)
+    return messages
   })
 
   ipcMain.handle("session:save", async (_, projectPath: string, messages: ChatMessageData[]) => {
     saveSession(projectPath, messages)
+    logger.session(`Saved: ${path.basename(projectPath)} (${messages.length} messages)`)
     return true
   })
 
   ipcMain.handle("session:delete", async (_, projectPath: string) => {
     deleteSession(projectPath)
+    logger.clear(`Session deleted: ${path.basename(projectPath)}`)
     return true
   })
 
   ipcMain.handle("session:list", async () => {
-    return listSessions()
+    const sessions = listSessions()
+    logger.session(`List sessions: ${sessions.length} found`)
+    return sessions
   })
 }
 
 app.whenReady().then(() => {
+  logger.lifecycle("App starting...")
+
+  const mode = process.env.QUENZATEX_MODE === "development" || process.env.NODE_ENV === "development"
+    ? "development"
+    : "production"
+  logger.lifecycle(`Mode: ${mode}`)
+
   registerIpcHandlers()
   createWindow()
+  logger.ready("Window created")
 
   startOpenCode()
+  logger.ready("opencode initialized")
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      logger.lifecycle("Reactivated (macOS)")
+      createWindow()
+    }
   })
 })
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit()
+  if (process.platform !== "darwin") {
+    logger.lifecycle("All windows closed, quitting")
+    app.quit()
+  }
 })
+
+ipcMain.on("log:from-renderer", logFromRenderer)

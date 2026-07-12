@@ -1,6 +1,9 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
 
 export interface AiProviderConfig {
+  /** "opencode" = free default; else "openai" | "google" | "anthropic" | custom */
+  provider: string
+  /** full model id e.g. "openai/gpt-4o", or "default" for the free bundled model */
   model: string
 }
 
@@ -27,6 +30,7 @@ interface SettingsContextValue {
 
 const defaultSettings: Settings = {
   ai: {
+    provider: "opencode",
     model: "default",
   },
   editor: {

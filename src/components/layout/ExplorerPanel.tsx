@@ -1,5 +1,19 @@
 import { useState } from "react"
-import { FolderTree, PanelLeftClose, Folder, File, ChevronRight, ChevronDown, FolderOpen, Settings2 } from "lucide-react"
+import {
+  FolderTree,
+  PanelLeftClose,
+  Folder,
+  File,
+  ChevronRight,
+  ChevronDown,
+  FolderOpen,
+  Settings2,
+  FolderOpen as OpenIcon,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 interface FileNode {
   name: string
@@ -15,7 +29,7 @@ interface ProjectState {
 }
 
 interface Props {
-  width: number
+  width?: number
   onClose: () => void
   project: ProjectState | null
   onOpenProject: () => void
@@ -53,20 +67,31 @@ function FileTreeNode({
     <div>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-2 pr-3 py-1.5 text-sm rounded-lg
-          hover:bg-gray-100 text-left transition-colors
-          ${isSelected ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"}`}
-        style={{ paddingLeft: `${depth * 16 + 12}px` }}
+        className={cn(
+          "group w-full flex items-center gap-1.5 pr-2 py-1.5 text-sm rounded-md text-left transition-colors",
+          isSelected
+            ? "bg-accent text-accent-foreground font-medium"
+            : "text-foreground/80 hover:bg-muted"
+        )}
+        style={{ paddingLeft: `${depth * 14 + 10}px` }}
       >
         {node.isDirectory ? (
           <>
-            {expanded ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
-            {expanded ? <FolderOpen size={15} className="shrink-0 text-yellow-500" /> : <Folder size={15} className="shrink-0 text-yellow-600" />}
+            {expanded ? (
+              <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+            )}
+            {expanded ? (
+              <FolderOpen size={15} className="shrink-0 text-amber-500" />
+            ) : (
+              <Folder size={15} className="shrink-0 text-amber-500" />
+            )}
           </>
         ) : (
           <>
-            <span className="w-4" />
-            <File size={15} className="shrink-0 text-blue-500" />
+            <span className="w-3.5 shrink-0" />
+            <File size={15} className="shrink-0 text-sky-500" />
           </>
         )}
         <span className="truncate">{node.name}</span>
@@ -75,8 +100,8 @@ function FileTreeNode({
         <div>
           {node.children.length === 0 ? (
             <p
-              className="text-xs text-gray-400 italic px-2 py-1"
-              style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+              className="text-xs text-muted-foreground italic py-1"
+              style={{ paddingLeft: `${(depth + 1) * 14 + 12}px` }}
             >
               empty
             </p>
@@ -98,48 +123,68 @@ function FileTreeNode({
   )
 }
 
-export function ExplorerPanel({ width, onClose, project, onOpenProject, onSelectFile, onExpandDir, onOpenSettings }: Props) {
+export function ExplorerPanel({
+  onClose,
+  project,
+  onOpenProject,
+  onSelectFile,
+  onExpandDir,
+  onOpenSettings,
+}: Props) {
   return (
-    <div
-      className="h-full flex flex-col bg-white border-r border-[var(--border)]"
-      style={{ width, minWidth: 180, maxWidth: 500 }}
-    >
-      <div className="flex items-center justify-between px-4 h-11 border-b border-[var(--border)] shrink-0">
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-          <FolderTree size={16} />
+    <div className="h-full w-full flex flex-col min-h-0 bg-sidebar border-r">
+      {/* Header */}
+      <div className="flex items-center justify-between pl-4 pr-2 h-11 border-b shrink-0">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <FolderTree size={15} className="text-muted-foreground" />
           <span>Explorer</span>
         </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={onOpenSettings}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Settings (Ctrl+,)"
-          >
-            <Settings2 size={15} />
-          </button>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <PanelLeftClose size={16} />
-          </button>
+        <div className="flex items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onOpenSettings}
+                className="text-muted-foreground"
+              >
+                <Settings2 size={15} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Settings (Ctrl+,)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onClose}
+                className="text-muted-foreground"
+              >
+                <PanelLeftClose size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Hide explorer (Ctrl+B)</TooltipContent>
+          </Tooltip>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto py-2">
-        {!project ? (
-          <div className="p-3 text-center">
-            <p className="text-sm text-gray-400 mb-3">No project opened</p>
-            <button
-              onClick={onOpenProject}
-              className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg
-                hover:bg-blue-600 transition-colors"
-            >
-              Open Folder
-            </button>
+
+      {/* Body */}
+      {!project ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="w-11 h-11 rounded-xl bg-muted flex items-center justify-center">
+            <OpenIcon size={20} className="text-muted-foreground" />
           </div>
-        ) : (
-          <div>
-            <div className="px-3 py-1 text-xs text-gray-400 font-medium uppercase tracking-wider">
+          <p className="text-sm text-muted-foreground">No project opened</p>
+          <Button size="sm" onClick={onOpenProject} className="gap-2">
+            <OpenIcon size={15} />
+            Open Folder
+          </Button>
+        </div>
+      ) : (
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-2 py-2">
+            <div className="px-2 pb-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
               {project.rootPath.split(/[/\\]/).pop()}
             </div>
             {project.files.map((node) => (
@@ -153,8 +198,8 @@ export function ExplorerPanel({ width, onClose, project, onOpenProject, onSelect
               />
             ))}
           </div>
-        )}
-      </div>
+        </ScrollArea>
+      )}
     </div>
   )
 }

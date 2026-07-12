@@ -1,11 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from "react"
+import { logger } from "../../lib/logger"
 import { ExplorerPanel } from "./ExplorerPanel"
 import { EditorPanel } from "./EditorPanel"
 import { PreviewPanel } from "./PreviewPanel"
 import { AIPanel } from "./AIPanel"
-import { ResizeHandle } from "./ResizeHandle"
 import { SetupWizard } from "../onboarding/SetupWizard"
 import { SettingsDialog } from "../settings/SettingsDialog"
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable"
 import { useFileExplorer } from "../../hooks/useFileExplorer"
 import { useOpencode } from "../../hooks/useOpencode"
 import { useSession } from "../../hooks/useSession"
@@ -13,8 +18,6 @@ import { useSettings } from "../../store/SettingsContext"
 import type { ChatMessage } from "../../hooks/useOpencode"
 
 export function AppLayout() {
-  const [explorerWidth, setExplorerWidth] = useState(250)
-  const [aiWidth, setAiWidth] = useState(320)
   const [explorerHidden, setExplorerHidden] = useState(false)
   const [aiHidden, setAiHidden] = useState(false)
   const [fileContent, setFileContent] = useState<string | null>(null)
@@ -74,6 +77,17 @@ export function AppLayout() {
     setup()
   }, [project?.rootPath, project?.files])
 
+  // Propagate model changes from Settings without needing to reopen the project
+  useEffect(() => {
+    const path = project?.rootPath
+    if (!path) return
+    const fileList = project?.files
+      ?.filter((f) => !f.isDirectory)
+      .map((f) => `- ${f.name}`)
+      .join("\n")
+    setProjectContext({ projectPath: path, fileList, model: settings.ai.model })
+  }, [settings.ai.model])
+
   // Auto-save chat when messages change
   useEffect(() => {
     const path = prevProjectPathRef.current
@@ -120,22 +134,25 @@ export function AppLayout() {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.ctrlKey && e.key === "b") {
       e.preventDefault()
-      setExplorerHidden((v) => !v)
+      setExplorerHidden((v) => { const n = !v; logger.key(`Ctrl+B → Explorer ${n ? "hidden" : "shown"}`); return n })
     }
     if (e.ctrlKey && e.key === "j") {
       e.preventDefault()
-      setAiHidden((v) => !v)
+      setAiHidden((v) => { const n = !v; logger.key(`Ctrl+J → AI Panel ${n ? "hidden" : "shown"}`); return n })
     }
     if (e.ctrlKey && e.key === "o") {
       e.preventDefault()
+      logger.key("Ctrl+O → Open project")
       openProject()
     }
     if (e.ctrlKey && e.key === ",") {
       e.preventDefault()
+      logger.key("Ctrl+, → Settings")
       setShowSettings(true)
     }
     if (e.ctrlKey && e.key === "Enter" && getSelectedPath()?.endsWith(".tex")) {
       e.preventDefault()
+      logger.key("Ctrl+Enter → Compile LaTeX")
       handleCompile()
     }
   }, [openProject, handleCompile, getSelectedPath])
@@ -149,6 +166,7 @@ export function AppLayout() {
   useEffect(() => {
     if (typeof window.electronAPI.onFilesChanged !== "function") return
     const unsub = window.electronAPI.onFilesChanged(() => {
+      logger.file("AI changed files, refreshing tree")
       refreshFiles()
     })
     return () => { if (typeof unsub === "function") unsub() }
@@ -157,70 +175,73 @@ export function AppLayout() {
   const handleSetupComplete = useCallback(() => {
     localStorage.setItem("quenzatex-setup-done", "true")
     setShowSetup(false)
+    logger.lifecycle("Setup wizard completed")
   }, [])
 
   return (
-    <div ref={containerRef} className="h-screen w-screen flex bg-white overflow-hidden select-none">
-      {!explorerHidden && (
-        <>
-          <ExplorerPanel
-            width={explorerWidth}
-            onClose={() => setExplorerHidden(true)}
-            project={project}
-            onOpenProject={openProject}
-            onSelectFile={handleSelectFile}
-            onExpandDir={expandDir}
-            onOpenSettings={() => setShowSettings(true)}
-          />
-          <ResizeHandle
-            onResize={(delta) =>
-              setExplorerWidth((w) => Math.max(180, Math.min(500, w + delta)))
-            }
-          />
-        </>
-      )}
+    <div ref={containerRef} className="h-screen w-screen bg-background overflow-hidden select-none">
+      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+        {!explorerHidden && (
+          <>
+            <ResizablePanel
+              defaultSize={18}
+              minSize={12}
+              maxSize={30}
+              className="min-w-0"
+            >
+              <ExplorerPanel
+                onClose={() => setExplorerHidden(true)}
+                project={project}
+                onOpenProject={openProject}
+                onSelectFile={handleSelectFile}
+                onExpandDir={expandDir}
+                onOpenSettings={() => setShowSettings(true)}
+              />
+            </ResizablePanel>
+            <ResizableHandle />
+          </>
+        )}
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex flex-1 min-h-0">
-          <div className="flex-1 min-w-0 flex flex-col">
-            <EditorPanel
-              filePath={getSelectedPath()}
-              fileContent={fileContent}
-              onSave={handleSave}
-            />
-          </div>
-          <ResizeHandle
-            onResize={(delta) => {
-              // editor/preview ratio resize
-            }}
-          />
-          <div className="flex-1 min-w-0 flex flex-col">
-            <PreviewPanel
-              pdfPath={pdfPath}
-              onCompile={handleCompile}
-              compiling={compiling}
-            />
-          </div>
-        </div>
-      </div>
+        <ResizablePanel defaultSize={aiHidden ? 82 : 58} minSize={30}>
+          <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+            <ResizablePanel defaultSize={50} minSize={20} className="min-w-0">
+              <EditorPanel
+                filePath={getSelectedPath()}
+                fileContent={fileContent}
+                onSave={handleSave}
+              />
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel defaultSize={50} minSize={20} className="min-w-0">
+              <PreviewPanel
+                pdfPath={pdfPath}
+                onCompile={handleCompile}
+                compiling={compiling}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </ResizablePanel>
 
-      {!aiHidden && (
-        <>
-          <ResizeHandle
-            onResize={(delta) =>
-              setAiWidth((w) => Math.max(280, Math.min(600, w + delta)))
-            }
-          />
-          <AIPanel
-            width={aiWidth}
-            onClose={() => setAiHidden(true)}
-            messages={chatMessages}
-            sending={chatSending}
-            onSend={sendChatMessage}
-            onClear={clearMessages}
-          />
-        </>
-      )}
+        {!aiHidden && (
+          <>
+            <ResizableHandle />
+            <ResizablePanel
+              defaultSize={24}
+              minSize={18}
+              maxSize={40}
+              className="min-w-0"
+            >
+              <AIPanel
+                onClose={() => setAiHidden(true)}
+                messages={chatMessages}
+                sending={chatSending}
+                onSend={sendChatMessage}
+                onClear={clearMessages}
+              />
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
 
       {showSetup && <SetupWizard onComplete={handleSetupComplete} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}

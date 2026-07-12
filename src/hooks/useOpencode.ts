@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react"
 import { parseMentions, buildPromptWithContext } from "../lib/mention-parser"
+import { logger } from "../lib/logger"
 
 export interface ChatMessage {
   id: string
@@ -28,7 +29,6 @@ export function useOpencode() {
   const projectContextRef = useRef<{ projectPath: string; fileList?: string; model?: string } | null>(null)
   const messagesRef = useRef<ChatMessage[]>([])
 
-  // Keep ref in sync with state
   messagesRef.current = state.messages
 
   const setProjectContext = useCallback((ctx: { projectPath: string; fileList?: string; model?: string } | null) => {
@@ -38,6 +38,7 @@ export function useOpencode() {
   const restoreMessages = useCallback((messages: ChatMessage[]) => {
     messagesRef.current = messages
     setState((s) => ({ ...s, messages }))
+    logger.session(`Restored ${messages.length} messages from session`)
   }, [])
 
   const sendMessage = useCallback(async (text: string) => {
@@ -48,7 +49,6 @@ export function useOpencode() {
       timestamp: new Date(),
     }
 
-    // Build history from ref BEFORE adding current message
     const history = messagesRef.current.map((m) => ({
       role: m.role,
       content: m.content,
@@ -60,12 +60,15 @@ export function useOpencode() {
       sending: true,
     }))
 
+    logger.ai(`Sending message (${history.length} history items)...`)
+
     try {
       const mentions = parseMentions(text)
       let finalText = text
       const contexts: { path: string; content: string }[] = []
 
       if (mentions.length > 0) {
+        logger.ai(`Found ${mentions.length} @mention(s): ${mentions.map(m => m.name).join(", ")}`)
         const projectPath = projectContextRef.current?.projectPath || ""
 
         for (const mention of mentions) {
@@ -74,8 +77,13 @@ export function useOpencode() {
             const content = await window.electronAPI.readFile(filePath)
             if (content !== null) {
               contexts.push({ path: mention.name, content })
+              logger.file(`@mention resolved: ${mention.name} (${content.length}B)`)
+            } else {
+              logger.warn(`@mention file not found: ${mention.name}`)
             }
-          } catch {}
+          } catch (err) {
+            logger.warn(`@mention read error: ${mention.name}`, err)
+          }
         }
 
         finalText = buildPromptWithContext(text, contexts)
@@ -101,7 +109,10 @@ export function useOpencode() {
         messages: [...s.messages, assistantMsg],
         sending: false,
       }))
+
+      logger.ai(`Got response (${(response || "").length}B): ${response?.slice(0, 200)}`)
     } catch (err: any) {
+      logger.error(`AI send error: ${err.message}`)
       const errorMsg: ChatMessage = {
         id: genId(),
         role: "assistant",
@@ -120,6 +131,7 @@ export function useOpencode() {
   const clearMessages = useCallback(() => {
     messagesRef.current = []
     setState((s) => ({ ...s, messages: [] }))
+    logger.clear("Chat cleared")
   }, [])
 
   return {
