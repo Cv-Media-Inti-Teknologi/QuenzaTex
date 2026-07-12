@@ -26,10 +26,7 @@ export function ChatView({ messages, sending, onSend, onClear }: Props) {
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs text-gray-500">OpenCode</span>
-        </div>
+        <div />
         {messages.length > 0 && (
           <button
             onClick={onClear}
