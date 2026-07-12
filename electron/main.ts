@@ -51,7 +51,7 @@ function createWindow() {
   if (process.env.QUENZATEX_MODE === "development" || process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools()
     mainWindow.maximize()
-    mainWindow.setTitle("Quenzatex [DEV]")
+    mainWindow.setTitle("QuenzaTex [DEV]")
   }
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -153,6 +153,35 @@ function registerIpcHandlers() {
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
     } catch (err: any) {
       logger.error(`pdf:read failed: ${err?.message}`)
+      return null
+    }
+  })
+
+  ipcMain.handle("image:read", async (_, imagePath: string) => {
+    try {
+      const ext = path.extname(imagePath || "").toLowerCase()
+      const mimeMap: Record<string, string> = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+      }
+      const mime = mimeMap[ext]
+      if (!mime || !fs.existsSync(imagePath)) {
+        logger.warn(`image:read invalid path: ${imagePath}`)
+        return null
+      }
+      const buf = fs.readFileSync(imagePath)
+      logger.file(`Read image: ${path.basename(imagePath)} (${buf.length}B)`)
+      return {
+        bytes: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+        mime,
+      }
+    } catch (err: any) {
+      logger.error(`image:read failed: ${err?.message}`)
       return null
     }
   })

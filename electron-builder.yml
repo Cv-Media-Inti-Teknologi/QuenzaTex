@@ -1,5 +1,5 @@
 appId: com.quenzatex.app
-productName: Quenzatex
+productName: QuenzaTex
 directories:
   buildResources: resources
   output: dist-electron
