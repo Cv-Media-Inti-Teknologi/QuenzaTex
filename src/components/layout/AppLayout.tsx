@@ -4,6 +4,8 @@ import { EditorPanel } from "./EditorPanel"
 import { PreviewPanel } from "./PreviewPanel"
 import { AIPanel } from "./AIPanel"
 import { ResizeHandle } from "./ResizeHandle"
+import { SetupWizard } from "../onboarding/SetupWizard"
+import { SettingsDialog } from "../settings/SettingsDialog"
 import { useFileExplorer } from "../../hooks/useFileExplorer"
 import { useOpencode } from "../../hooks/useOpencode"
 
@@ -15,6 +17,8 @@ export function AppLayout() {
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [pdfPath, setPdfPath] = useState<string | null>(null)
   const [compiling, setCompiling] = useState(false)
+  const [showSetup, setShowSetup] = useState(() => !localStorage.getItem("quenzatex-setup-done"))
+  const [showSettings, setShowSettings] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -76,11 +80,20 @@ export function AppLayout() {
       e.preventDefault()
       openProject()
     }
+    if (e.ctrlKey && e.key === ",") {
+      e.preventDefault()
+      setShowSettings(true)
+    }
     if (e.ctrlKey && e.key === "Enter" && getSelectedPath()?.endsWith(".tex")) {
       e.preventDefault()
       handleCompile()
     }
   }, [openProject, handleCompile, getSelectedPath])
+
+  const handleSetupComplete = useCallback(() => {
+    localStorage.setItem("quenzatex-setup-done", "true")
+    setShowSetup(false)
+  }, [])
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown)
@@ -98,6 +111,7 @@ export function AppLayout() {
             onOpenProject={openProject}
             onSelectFile={handleSelectFile}
             onExpandDir={expandDir}
+            onOpenSettings={() => setShowSettings(true)}
           />
           <ResizeHandle
             onResize={(delta) =>
@@ -149,6 +163,9 @@ export function AppLayout() {
           />
         </>
       )}
+
+      {showSetup && <SetupWizard onComplete={handleSetupComplete} />}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

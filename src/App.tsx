@@ -1,7 +1,12 @@
+import { SettingsProvider } from "./store/SettingsContext"
 import { AppLayout } from "./components/layout/AppLayout"
 
 function App() {
-  return <AppLayout />
+  return (
+    <SettingsProvider>
+      <AppLayout />
+    </SettingsProvider>
+  )
 }
 
 export default App

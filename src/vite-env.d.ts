@@ -40,7 +40,12 @@ interface ElectronAPI {
   opencodeSendWithContext: (message: string, paths: string[]) => Promise<string>
   opencodeStatus: () => Promise<OpenCodeStatus>
   opencodeCheckInstalled: () => Promise<boolean>
-  getEnvStatus: () => Promise<Record<string, { installed: boolean; version?: string }>>
+  checkEnvironment: () => Promise<{
+    node: { found: boolean; version: string }
+    opencode: { found: boolean; version: string }
+    texlive: { found: boolean; version: string; latexmk: boolean }
+  }>
+  installOpencode: () => Promise<boolean>
 }
 
 interface Window {

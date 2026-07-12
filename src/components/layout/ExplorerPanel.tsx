@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { FolderTree, PanelLeftClose, Folder, File, ChevronRight, ChevronDown, FolderOpen } from "lucide-react"
+import { FolderTree, PanelLeftClose, Folder, File, ChevronRight, ChevronDown, FolderOpen, Settings2 } from "lucide-react"
 
 interface FileNode {
   name: string
@@ -21,6 +21,7 @@ interface Props {
   onOpenProject: () => void
   onSelectFile: (path: string) => void
   onExpandDir: (path: string) => void
+  onOpenSettings?: () => void
 }
 
 function FileTreeNode({
@@ -97,7 +98,7 @@ function FileTreeNode({
   )
 }
 
-export function ExplorerPanel({ width, onClose, project, onOpenProject, onSelectFile, onExpandDir }: Props) {
+export function ExplorerPanel({ width, onClose, project, onOpenProject, onSelectFile, onExpandDir, onOpenSettings }: Props) {
   return (
     <div
       className="h-full flex flex-col bg-white border-r border-[var(--border)]"
@@ -108,12 +109,21 @@ export function ExplorerPanel({ width, onClose, project, onOpenProject, onSelect
           <FolderTree size={15} />
           <span>Explorer</span>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded hover:bg-[var(--muted)] text-gray-400 hover:text-gray-600"
-        >
-          <PanelLeftClose size={15} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onOpenSettings}
+            className="p-1 rounded hover:bg-[var(--muted)] text-gray-400 hover:text-gray-600"
+            title="Settings (Ctrl+,)"
+          >
+            <Settings2 size={14} />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-[var(--muted)] text-gray-400 hover:text-gray-600"
+          >
+            <PanelLeftClose size={15} />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto py-1">
         {!project ? (

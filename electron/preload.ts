@@ -19,5 +19,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("opencode:send-with-context", message, paths),
   opencodeStatus: () => ipcRenderer.invoke("opencode:status"),
   opencodeCheckInstalled: () => ipcRenderer.invoke("opencode:check-installed"),
-  getEnvStatus: () => ipcRenderer.invoke("env:status"),
+  checkEnvironment: () => ipcRenderer.invoke("env:check"),
+  installOpencode: () => ipcRenderer.invoke("env:install-opencode"),
 })

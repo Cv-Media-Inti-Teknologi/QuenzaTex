@@ -9,6 +9,7 @@ import {
   sendOpenCodeMessage,
   isOpenCodeInstalled,
 } from "./services/opencode"
+import { checkEnvironment, installOpencode } from "./services/env-setup"
 
 let mainWindow: BrowserWindow | null = null
 let currentProjectDir: string | null = null
@@ -141,6 +142,14 @@ function registerIpcHandlers() {
 
   ipcMain.handle("opencode:check-installed", async () => {
     return isOpenCodeInstalled()
+  })
+
+  ipcMain.handle("env:check", async () => {
+    return checkEnvironment()
+  })
+
+  ipcMain.handle("env:install-opencode", async () => {
+    return installOpencode()
   })
 }
 
