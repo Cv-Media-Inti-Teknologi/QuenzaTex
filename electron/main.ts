@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron"
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron"
 import path from "path"
 import fs from "fs"
 import { compileLatex, checkLatexInstallation, startLatexWatch } from "./services/latex"
@@ -126,6 +126,17 @@ function registerIpcHandlers() {
     const entries = getAllFiles(dirPath)
     logger.dir(`List dir: ${path.basename(dirPath)} (${entries.length} items)`)
     return entries
+  })
+
+  ipcMain.handle("file:show-in-folder", async (_, filePath: string) => {
+    try {
+      shell.showItemInFolder(filePath)
+      logger.file(`Revealed in Explorer: ${path.basename(filePath)}`)
+      return true
+    } catch (err) {
+      logger.error(`Failed to reveal in Explorer: ${filePath}`, err)
+      return false
+    }
   })
 
   let latexWatcher: { stop: () => void } | null = null

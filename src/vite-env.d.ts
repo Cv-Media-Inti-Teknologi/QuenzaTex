@@ -49,6 +49,9 @@ interface ModelEntry {
   provider: string
   model: string
   full: string
+  name?: string
+  toolCall?: boolean
+  free?: boolean
 }
 
 interface ElectronAPI {
@@ -57,6 +60,7 @@ interface ElectronAPI {
   readFile: (path: string) => Promise<string | null>
   writeFile: (path: string, content: string) => Promise<boolean>
   listDir: (dir: string) => Promise<FileEntry[]>
+  showItemInFolder: (path: string) => Promise<boolean>
   latexCompile: (file: string) => Promise<CompileResult>
   latexCheck: () => Promise<boolean>
   latexWatch: (file: string) => Promise<boolean>

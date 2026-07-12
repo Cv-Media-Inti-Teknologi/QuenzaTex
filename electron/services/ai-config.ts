@@ -47,6 +47,9 @@ export interface ModelEntry {
   provider: string
   model: string
   full: string
+  name?: string
+  toolCall?: boolean
+  free?: boolean
 }
 
 const FREE_DEFAULT_MODEL = "opencode/deepseek-v4-flash-free"
@@ -347,9 +350,87 @@ export function listModels(force = false): ModelEntry[] {
   }
 }
 
-/** Models for a given provider id. */
+/** Models for a given provider id — catalog first, then live opencode, then examples. */
 export function listModelsForProvider(providerId: string): ModelEntry[] {
-  return listModels().filter((m) => m.provider === providerId)
+  // 1) Full models.dev catalog (works even before the provider is authenticated)
+  const catalog = listCatalogModels(providerId)
+  if (catalog.length > 0) return catalog
+
+  // 2) Live list from opencode (only authenticated providers)
+  const live = listModels().filter((m) => m.provider === providerId)
+  if (live.length > 0) return live
+
+  return []
+}
+
+// --- models.dev catalog (bundled by opencode) ---
+
+const catalogCache = new Map<string, ModelEntry[]>()
+
+function getCatalogPath(): string | null {
+  // opencode caches the full models.dev catalog here
+  const candidates = [
+    path.join(os.homedir(), ".cache", "opencode", "models.json"),
+    process.env.LOCALAPPDATA &&
+      path.join(process.env.LOCALAPPDATA, "opencode", "cache", "models.json"),
+  ].filter(Boolean) as string[]
+  for (const c of candidates) {
+    if (existsSync(c)) return c
+  }
+  return null
+}
+
+// Non-chat model id patterns we hide from the picker
+const NON_CHAT = /(embedding|embed|tts|whisper|audio|realtime|image|dall-?e|vision-only|moderation|rerank|speech|transcribe|guard)/i
+
+/**
+ * Read the full models.dev catalog for a provider. Returns chat/agent models
+ * with tool-calling and cost flags, without requiring the provider to be
+ * authenticated.
+ */
+export function listCatalogModels(providerId: string): ModelEntry[] {
+  const cached = catalogCache.get(providerId)
+  if (cached) return cached
+
+  const p = getCatalogPath()
+  if (!p) return []
+
+  try {
+    const catalog = JSON.parse(readFileSync(p, "utf-8"))
+    const prov = catalog?.[providerId]
+    if (!prov?.models) return []
+
+    const entries: ModelEntry[] = []
+    for (const [modelId, raw] of Object.entries<any>(prov.models)) {
+      if (NON_CHAT.test(modelId)) continue
+      // keep only models that output text
+      const outputs: string[] = raw?.modalities?.output || ["text"]
+      if (!outputs.includes("text")) continue
+
+      const cost = raw?.cost
+      const free = !cost || (Number(cost.input) === 0 && Number(cost.output) === 0)
+      entries.push({
+        provider: providerId,
+        model: modelId,
+        full: `${providerId}/${modelId}`,
+        name: raw?.name || modelId,
+        toolCall: !!raw?.tool_call,
+        free,
+      })
+    }
+
+    // Sort: tool-capable first, then by name
+    entries.sort((a, b) => {
+      if (!!a.toolCall !== !!b.toolCall) return a.toolCall ? -1 : 1
+      return (a.name || a.model).localeCompare(b.name || b.model)
+    })
+
+    catalogCache.set(providerId, entries)
+    return entries
+  } catch (err: any) {
+    logger.warn(`Failed to read models catalog for ${providerId}: ${err?.message}`)
+    return []
+  }
 }
 
 export function getFreeDefaultModel(): string {

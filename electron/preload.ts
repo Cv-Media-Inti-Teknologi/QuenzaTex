@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readFile: (path: string) => ipcRenderer.invoke("file:read", path),
   writeFile: (path: string, content: string) => ipcRenderer.invoke("file:write", path, content),
   listDir: (dir: string) => ipcRenderer.invoke("file:listDir", dir),
+  showItemInFolder: (path: string) => ipcRenderer.invoke("file:show-in-folder", path),
   latexCompile: (file: string) => ipcRenderer.invoke("latex:compile", file),
   latexCheck: () => ipcRenderer.invoke("latex:check"),
   latexWatch: (file: string) => ipcRenderer.invoke("latex:watch", file),

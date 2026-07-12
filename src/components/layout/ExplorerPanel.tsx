@@ -12,6 +12,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { cn } from "@/lib/utils"
 
 interface FileNode {
@@ -64,37 +71,58 @@ function FileTreeNode({
 
   return (
     <div>
-      <button
-        onClick={handleClick}
-        className={cn(
-          "group w-full flex items-center gap-1.5 pr-2 py-1.5 text-sm rounded-md text-left transition-colors",
-          isSelected
-            ? "bg-accent text-accent-foreground font-medium"
-            : "text-foreground/80 hover:bg-muted"
-        )}
-        style={{ paddingLeft: `${depth * 14 + 10}px` }}
-      >
-        {node.isDirectory ? (
-          <>
-            {expanded ? (
-              <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-            ) : (
-              <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <button
+            onClick={handleClick}
+            className={cn(
+              "group w-full flex items-center gap-1.5 pr-2 py-1.5 text-sm rounded-md text-left transition-colors",
+              isSelected
+                ? "bg-accent text-accent-foreground font-medium"
+                : "text-foreground/80 hover:bg-muted"
             )}
-            {expanded ? (
-              <FolderOpen size={15} className="shrink-0 text-amber-500" />
+            style={{ paddingLeft: `${depth * 14 + 10}px` }}
+          >
+            {node.isDirectory ? (
+              <>
+                {expanded ? (
+                  <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+                )}
+                {expanded ? (
+                  <FolderOpen size={15} className="shrink-0 text-amber-500" />
+                ) : (
+                  <Folder size={15} className="shrink-0 text-amber-500" />
+                )}
+              </>
             ) : (
-              <Folder size={15} className="shrink-0 text-amber-500" />
+              <>
+                <span className="w-3.5 shrink-0" />
+                <File size={15} className="shrink-0 text-sky-500" />
+              </>
             )}
-          </>
-        ) : (
-          <>
-            <span className="w-3.5 shrink-0" />
-            <File size={15} className="shrink-0 text-sky-500" />
-          </>
-        )}
-        <span className="truncate">{node.name}</span>
-      </button>
+            <span className="truncate">{node.name}</span>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {node.isDirectory ? (
+            <ContextMenuItem onClick={() => window.electronAPI.showItemInFolder(node.path)}>
+              Reveal in Explorer
+            </ContextMenuItem>
+          ) : (
+            <>
+              <ContextMenuItem onClick={() => onSelect(node.path)}>
+                {node.name.toLowerCase().endsWith(".pdf") ? "Open in Preview" : "Open in Editor"}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onClick={() => window.electronAPI.showItemInFolder(node.path)}>
+                Reveal in Explorer
+              </ContextMenuItem>
+            </>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
       {node.isDirectory && expanded && node.children && (
         <div>
           {node.children.length === 0 ? (

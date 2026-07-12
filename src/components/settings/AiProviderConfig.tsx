@@ -371,14 +371,14 @@ function ProviderDetail({
         )}
       </div>
 
-      {connected && (
-        <div className="space-y-2">
-          <Label>Model</Label>
-          {loadingModels ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-              <Loader2 size={13} className="animate-spin" /> Loading models…
-            </div>
-          ) : models.length > 0 ? (
+      <div className="space-y-2">
+        <Label>Model</Label>
+        {loadingModels ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <Loader2 size={13} className="animate-spin" /> Loading models…
+          </div>
+        ) : models.length > 0 ? (
+          <>
             <Select value={activeModel} onValueChange={onSelectModel}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose a model…" />
@@ -386,19 +386,40 @@ function ProviderDetail({
               <SelectContent>
                 {models.map((m) => (
                   <SelectItem key={m.full} value={m.full}>
-                    {m.model}
+                    <span className="flex items-center gap-2">
+                      <span>{m.name || m.model}</span>
+                      {m.toolCall && (
+                        <span className="text-[10px] px-1 py-px rounded bg-emerald-100 text-emerald-700">
+                          tools
+                        </span>
+                      )}
+                      {m.free ? (
+                        <span className="text-[10px] px-1 py-px rounded bg-sky-100 text-sky-700">
+                          free
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">$</span>
+                      )}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              No models found. Examples:{" "}
-              <span className="font-mono">{provider.exampleModels.join(", ")}</span>
-            </p>
-          )}
-        </div>
-      )}
+            {!connected && (
+              <p className="text-[11px] text-muted-foreground">
+                Pick a model, then add your API key above to start using it.
+                Models tagged <span className="text-emerald-700 font-medium">tools</span> work
+                best for building/editing files.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No models found. Examples:{" "}
+            <span className="font-mono">{provider.exampleModels.join(", ")}</span>
+          </p>
+        )}
+      </div>
 
       {/* Ping-pong connectivity check (only when a model is active for this provider) */}
       {connected && activeModel && activeModel.startsWith(`${provider.id}/`) && (
