@@ -60,6 +60,7 @@ interface ElectronAPI {
   latexCheck: () => Promise<boolean>
   latexWatch: (file: string) => Promise<boolean>
   latexStopWatch: () => Promise<boolean>
+  readPdf: (path: string) => Promise<ArrayBuffer | null>
   onLatexResult: (callback: (result: CompileResult) => void) => void
   opencodeStatus: () => Promise<OpenCodeStatus>
   opencodeCheckInstalled: () => Promise<boolean>

@@ -140,6 +140,22 @@ function registerIpcHandlers() {
     return result
   })
 
+  ipcMain.handle("pdf:read", async (_, pdfPath: string) => {
+    try {
+      if (!pdfPath || !pdfPath.toLowerCase().endsWith(".pdf") || !fs.existsSync(pdfPath)) {
+        logger.warn(`pdf:read invalid path: ${pdfPath}`)
+        return null
+      }
+      const buf = fs.readFileSync(pdfPath)
+      logger.latex(`Read PDF: ${path.basename(pdfPath)} (${buf.length}B)`)
+      // Return a plain ArrayBuffer slice so it survives IPC structured clone
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+    } catch (err: any) {
+      logger.error(`pdf:read failed: ${err?.message}`)
+      return null
+    }
+  })
+
   ipcMain.handle("latex:check", async () => {
     logger.latex("Checking LaTeX installation...")
     const result = checkLatexInstallation()

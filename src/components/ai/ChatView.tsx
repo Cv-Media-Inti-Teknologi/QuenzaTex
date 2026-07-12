@@ -67,7 +67,7 @@ export function ChatView({ messages, sending, onSend, onClear, onClose }: Props)
 
       {/* Scrollable messages — min-h-0 lets this flex child shrink so overflow works */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-6 py-6 space-y-6">
           {messages.length === 0 && (
             <div className="text-center mt-16 px-4">
               <div className="mx-auto w-12 h-12 rounded-2xl bg-accent flex items-center justify-center mb-4">
@@ -103,12 +103,9 @@ export function ChatView({ messages, sending, onSend, onClear, onClose }: Props)
                 {msg.role === "user" ? <User size={14} /> : <Bot size={14} />}
               </div>
               <div
-                className={cn(
-                  "max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words",
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-tr-sm"
-                    : "bg-muted text-foreground rounded-tl-sm"
-                )}
+                className={`chat-bubble ${
+                  msg.role === "user" ? "chat-bubble-user" : "chat-bubble-bot"
+                }`}
               >
                 <p className="whitespace-pre-wrap">{msg.content}</p>
               </div>
@@ -120,7 +117,7 @@ export function ChatView({ messages, sending, onSend, onClear, onClose }: Props)
               <div className="w-7 h-7 rounded-lg bg-accent text-primary flex items-center justify-center shrink-0 mt-0.5">
                 <Bot size={14} />
               </div>
-              <div className="bg-muted px-3.5 py-3 rounded-2xl rounded-tl-sm flex items-center gap-2">
+              <div className="chat-bubble chat-bubble-bot flex items-center gap-2">
                 <Loader2 size={15} className="animate-spin text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Thinking…</span>
               </div>

@@ -22,6 +22,7 @@ export function AppLayout() {
   const [aiHidden, setAiHidden] = useState(false)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [pdfPath, setPdfPath] = useState<string | null>(null)
+  const [pdfVersion, setPdfVersion] = useState(0)
   const [compiling, setCompiling] = useState(false)
   const [showSetup, setShowSetup] = useState(() => !localStorage.getItem("quenzatex-setup-done"))
   const [showSettings, setShowSettings] = useState(false)
@@ -125,6 +126,7 @@ export function AppLayout() {
       const result = await window.electronAPI.latexCompile(path)
       if (result.pdfPath) {
         setPdfPath(result.pdfPath)
+        setPdfVersion(Date.now())
       }
     } finally {
       setCompiling(false)
@@ -215,6 +217,7 @@ export function AppLayout() {
             <ResizablePanel defaultSize={50} minSize={20} className="min-w-0">
               <PreviewPanel
                 pdfPath={pdfPath}
+                pdfVersion={pdfVersion}
                 onCompile={handleCompile}
                 compiling={compiling}
               />
