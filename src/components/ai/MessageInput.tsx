@@ -87,7 +87,7 @@ export function MessageInput({ onSend, disabled }: Props) {
           )}
         </div>
       </div>
-      <p className="mt-1.5 px-1 text-[11px] text-muted-foreground">
+      <p className="mt-1.5 px-1 text-[9px] text-muted-foreground opacity-80">
         Enter to send · Shift+Enter for new line
       </p>
     </div>
