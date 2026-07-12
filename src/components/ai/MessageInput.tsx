@@ -10,9 +10,10 @@ interface FileSuggestion {
 interface Props {
   onSend: (message: string) => void
   disabled: boolean
+  availableFiles: FileSuggestion[]
 }
 
-export function MessageInput({ onSend, disabled }: Props) {
+export function MessageInput({ onSend, disabled, availableFiles }: Props) {
   const [text, setText] = useState("")
   const [showMentions, setShowMentions] = useState(false)
   const [mentionQuery, setMentionQuery] = useState("")
@@ -81,6 +82,7 @@ export function MessageInput({ onSend, disabled }: Props) {
           {showMentions && (
             <MentionDropdown
               query={mentionQuery}
+              availableFiles={availableFiles}
               onSelect={handleSelectFile}
               onClose={() => setShowMentions(false)}
             />

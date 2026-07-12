@@ -131,7 +131,7 @@ export function PdfPreview({ pdfPath, pdfVersion }: Props) {
             </div>
           </div>
         )}
-        <div className="flex justify-center p-4">
+        <div className="min-w-max min-h-full flex items-start justify-center p-4">
           <canvas ref={canvasRef} className="shadow-lg rounded-sm bg-white" />
         </div>
       </div>

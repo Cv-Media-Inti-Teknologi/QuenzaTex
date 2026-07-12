@@ -87,13 +87,13 @@ export function ImagePreview({ imagePath, imageVersion }: Props) {
             </div>
           </div>
         )}
-        <div className="flex min-h-full items-center justify-center p-4">
+        <div className="min-w-max min-h-full flex items-center justify-center p-4">
           {url && (
             <img
               src={url}
               alt="preview"
               style={{ transform: `scale(${scale})` }}
-              className="max-w-full origin-center shadow-lg transition-transform"
+              className="max-w-none origin-center shadow-lg transition-transform"
             />
           )}
         </div>

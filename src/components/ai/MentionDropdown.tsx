@@ -7,25 +7,24 @@ interface FileSuggestion {
 
 interface Props {
   query: string
+  availableFiles: FileSuggestion[]
   onSelect: (file: FileSuggestion) => void
   onClose: () => void
 }
 
-export function MentionDropdown({ query, onSelect, onClose }: Props) {
+export function MentionDropdown({ query, availableFiles, onSelect, onClose }: Props) {
   const [suggestions, setSuggestions] = useState<FileSuggestion[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // In a real implementation, we'd scan the project directory
-    const mockFiles: FileSuggestion[] = []
     setSuggestions(
-      mockFiles.filter((f) =>
+      availableFiles.filter((f) =>
         f.name.toLowerCase().includes(query.toLowerCase())
       )
     )
     setSelectedIndex(0)
-  }, [query])
+  }, [query, availableFiles])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
