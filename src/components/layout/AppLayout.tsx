@@ -30,6 +30,7 @@ export function AppLayout() {
     expandDir,
     selectFile,
     getSelectedPath,
+    refreshFiles,
   } = useFileExplorer()
 
   const {
@@ -142,6 +143,14 @@ export function AppLayout() {
     document.addEventListener("keydown", handleKeyDown)
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyDown])
+
+  // Refresh file tree when AI creates/changes files
+  useEffect(() => {
+    const unsub = window.electronAPI.onFilesChanged(() => {
+      refreshFiles()
+    })
+    return () => unsub()
+  }, [refreshFiles])
 
   return (
     <div ref={containerRef} className="h-screen w-screen flex bg-white overflow-hidden select-none">

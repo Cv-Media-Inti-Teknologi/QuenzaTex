@@ -81,7 +81,7 @@ function registerIpcHandlers() {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     currentProjectDir = result.filePaths[0]
-    setProjectPath(currentProjectDir)
+    await setProjectPath(currentProjectDir)
     return { path: currentProjectDir, files: getAllFiles(currentProjectDir) }
   })
 
@@ -135,7 +135,7 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle("opencode:start", async () => {
-    return startOpenCode()
+    return startOpenCode(currentProjectDir || undefined)
   })
 
   ipcMain.handle("opencode:stop", async () => {
@@ -148,11 +148,14 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle("opencode:send", async (_, message: string) => {
-    return sendOpenCodeMessage(message)
+    const response = await sendOpenCodeMessage(message)
+    return response
   })
 
   ipcMain.handle("opencode:send-with-context", async (_, message: string, projectPath: string, fileList?: string) => {
-    return sendOpenCodeMessage(message, { projectPath, fileList })
+    const response = await sendOpenCodeMessage(message, { projectPath, fileList })
+    mainWindow?.webContents.send("project:files-changed")
+    return response
   })
 
   ipcMain.handle("opencode:check-installed", async () => {

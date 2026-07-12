@@ -26,4 +26,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("session:save", projectPath, messages),
   sessionDelete: (projectPath: string) => ipcRenderer.invoke("session:delete", projectPath),
   sessionList: () => ipcRenderer.invoke("session:list"),
+  onFilesChanged: (callback: () => void) => {
+    ipcRenderer.on("project:files-changed", () => callback())
+    return () => ipcRenderer.removeAllListeners("project:files-changed")
+  },
 })

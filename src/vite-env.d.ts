@@ -57,6 +57,7 @@ interface ElectronAPI {
   sessionSave: (projectPath: string, messages: ChatMessageData[]) => Promise<boolean>
   sessionDelete: (projectPath: string) => Promise<boolean>
   sessionList: () => Promise<{ path: string; lastOpened: string }[]>
+  onFilesChanged: (callback: () => void) => () => void
 }
 
 interface Window {

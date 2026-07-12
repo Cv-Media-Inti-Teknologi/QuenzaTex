@@ -74,6 +74,19 @@ export function useFileExplorer() {
     return project?.selectedFile ?? null
   }, [project])
 
+  const refreshFiles = useCallback(async () => {
+    if (!project) return
+    try {
+      const entries = await window.electronAPI.listDir(project.rootPath)
+      setProject((prev) => prev ? {
+        ...prev,
+        files: buildTree(entries, project.rootPath),
+      } : prev)
+    } catch {
+      // ignore
+    }
+  }, [project, buildTree])
+
   return {
     project,
     loading,
@@ -82,5 +95,6 @@ export function useFileExplorer() {
     selectFile,
     getSelectedContent,
     getSelectedPath,
+    refreshFiles,
   }
 }

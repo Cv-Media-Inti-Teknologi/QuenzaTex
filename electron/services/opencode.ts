@@ -13,6 +13,7 @@ let serverProcess: ReturnType<typeof spawn> | null = null
 let currentStatus: OpenCodeStatus = { running: false, mode: "off", port: 0 }
 let activeSessionId: string | null = null
 let currentProjectPath: string | null = null
+let serverStarting: Promise<boolean> | null = null
 
 function checkOpencodeInstalled(): boolean {
   try {
@@ -33,12 +34,14 @@ async function findFreePort(): Promise<number> {
   })
 }
 
-async function startHttpServer(): Promise<boolean> {
+async function startHttpServer(projectDir?: string): Promise<boolean> {
   if (!checkOpencodeInstalled()) return false
 
   const port = await findFreePort()
 
   return new Promise((resolve) => {
+    const cwd = projectDir || process.cwd()
+
     const proc = spawn(
       "opencode",
       [
@@ -58,6 +61,7 @@ async function startHttpServer(): Promise<boolean> {
         }),
       ],
       {
+        cwd,
         stdio: ["ignore", "pipe", "pipe"],
         shell: true,
       }
@@ -139,11 +143,13 @@ function httpRequest(
 }
 
 function buildProjectContext(projectPath: string, fileList?: string): string {
-  let context = `Project: ${projectPath}\n`
+  let ctx = `You are working inside this project directory: ${projectPath}\n`
+  ctx += `ALL file operations (create, read, edit, delete) MUST use absolute paths under this directory.\n`
+  ctx += `When the user asks you to create a file, always create it inside this directory.\n`
   if (fileList) {
-    context += `Files:\n${fileList}`
+    ctx += `\nExisting project files:\n${fileList}\n`
   }
-  return context
+  return ctx
 }
 
 async function sendViaHttp(
@@ -178,7 +184,7 @@ async function sendViaHttp(
       )
       parts.push({
         type: "text",
-        text: `[System Context - this is the active project]\n${systemMsg}\n\n---\n\n`,
+        text: `[SYSTEM CONTEXT - PROJECT DIRECTORY]\n${systemMsg}\n---\n\n`,
       })
     }
 
@@ -211,9 +217,10 @@ async function sendViaCli(
 
   let prompt = ""
   if (projectContext) {
-    prompt += `Project directory: ${projectContext.projectPath}\n`
+    prompt += `You are working inside this project directory: ${projectContext.projectPath}\n`
+    prompt += `ALL file operations MUST use absolute paths under this directory.\n`
     if (projectContext.fileList) {
-      prompt += `Project files:\n${projectContext.fileList}\n`
+      prompt += `\nExisting project files:\n${projectContext.fileList}\n`
     }
     prompt += "\n---\n\n"
   }
@@ -224,7 +231,7 @@ async function sendViaCli(
   try {
     const output = execSync(
       `opencode run "${escaped}"`,
-      { timeout: 120000, encoding: "utf-8" }
+      { cwd: projectContext?.projectPath || process.cwd(), timeout: 120000, encoding: "utf-8" }
     )
     return output.trim()
   } catch (err: any) {
@@ -232,15 +239,25 @@ async function sendViaCli(
   }
 }
 
-export function setProjectPath(projectPath: string | null) {
+export async function setProjectPath(projectPath: string | null) {
+  const changed = projectPath !== currentProjectPath
   currentProjectPath = projectPath
-  if (currentStatus.mode === "http") {
-    activeSessionId = null
+  activeSessionId = null
+
+  if (changed && projectPath && currentStatus.mode === "http") {
+    console.log(`Project changed to ${projectPath}, restarting opencode server...`)
+    stopOpenCode()
+    await startHttpServer(projectPath)
+    console.log(`Opencode server restarted with project: ${projectPath}`)
   }
 }
 
-export async function startOpenCode(): Promise<OpenCodeStatus> {
-  const httpOk = await startHttpServer()
+export async function startOpenCode(projectDir?: string): Promise<OpenCodeStatus> {
+  if (projectDir) {
+    currentProjectPath = projectDir
+  }
+
+  const httpOk = await startHttpServer(currentProjectPath || undefined)
   if (httpOk) return currentStatus
 
   if (checkOpencodeInstalled()) {
